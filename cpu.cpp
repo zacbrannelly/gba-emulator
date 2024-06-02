@@ -6,19 +6,19 @@
 
 void cpu_arm_write_pc(CPU& cpu, uint32_t value) {
   // Make sure the last two bits are 0 (4-byte aligned)
-  cpu.registers[PC] = value & ~0x3;
+  cpu.set_register_value(PC, value & ~0x3);
 }
 
 // Branch and Exchange instruction
 void branch_and_exchange(uint8_t register_number, CPU& cpu) {
-  uint32_t address = cpu.registers[register_number];
+  uint32_t address = cpu.get_register_value(register_number);
 
   if (address & 0x1) {
     // Set the T bit (5th bit, State Bit) in the CPSR
     cpu.cspr |= 0x20;
 
     // Make sure the last bit is 0 (2-byte aligned)
-    cpu.registers[PC] = address & ~0x1;
+    cpu.set_register_value(PC, address & ~0x1);
   } else {
     // Reset the T bit (5th bit, State Bit) in the CPSR
     cpu.cspr &= ~0x20;
@@ -55,7 +55,7 @@ void branch(uint32_t offset, CPU& cpu) {
 
   // Account for the PC being 8 bytes ahead
   // The value we get from the instruction assumes the PC is 8 bytes ahead
-  uint32_t pc_with_prefetch = cpu.registers[PC] + 8;
+  uint32_t pc_with_prefetch = cpu.get_register_value(PC) + 8;
 
   // Set the new PC
   cpu_arm_write_pc(cpu, pc_with_prefetch + signed_offset);
@@ -63,7 +63,7 @@ void branch(uint32_t offset, CPU& cpu) {
 
 void branch_with_link(uint32_t offset, CPU& cpu) {
   // Set the LR to the address of the next instruction
-  cpu.registers[LR] = cpu.registers[PC] + ARM_INSTRUCTION_SIZE;
+  cpu.set_register_value(LR, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 
   // The offset is a signed 24-bit value
   // We need to shift it left by 2 bits (to multiply by 4)
@@ -75,7 +75,7 @@ void branch_with_link(uint32_t offset, CPU& cpu) {
 
   // Account for the PC being 8 bytes ahead
   // The value we get from the instruction assumes the PC is 8 bytes ahead
-  uint32_t pc_with_prefetch = cpu.registers[PC] + 8;
+  uint32_t pc_with_prefetch = cpu.get_register_value(PC) + 8;
 
   // Set the new PC
   cpu_arm_write_pc(cpu, pc_with_prefetch + signed_offset);
@@ -220,7 +220,7 @@ uint8_t get_shift_amount(CPU& cpu, uint16_t operand_2) {
     if (shift_register == PC) {
       throw std::runtime_error("PC register cannot be used as a shift register");
     }
-    shift_amount = cpu.registers[shift_register] & 0xFF;
+    shift_amount = cpu.get_register_value(shift_register) & 0xFF;
   } else {
     // Fetch the shift amount from the immediate value (last 5 bits)
     shift_amount = (operand_2 >> 7) & 0x1F;
@@ -236,7 +236,7 @@ uint32_t apply_shift_operation(CPU& cpu, uint16_t operand_2) {
   uint8_t shift_amount = get_shift_amount(cpu, operand_2);
   uint8_t shift_type = (operand_2 >> 5) & 0b11;
 
-  return shift<SetFlags>(cpu, cpu.registers[register_operand_2], shift_amount, shift_type);
+  return shift<SetFlags>(cpu, cpu.get_register_value(register_operand_2), shift_amount, shift_type);
 }
 
 template<bool SetFlags = false>
@@ -269,33 +269,33 @@ void update_negative_and_zero_cspr_flags(CPU& cpu, ResultType result) {
 
 template<bool SetFlags = false>
 void and_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  cpu.registers[destination_register] = operand_1 & operand_2;
+  cpu.set_register_value(destination_register, operand_1 & operand_2);
 
   if (SetFlags) {
     // Update the CSPR flags (only N and Z, C and V are not updated)
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
   }
 }
 
 template<bool SetFlags = false>
 void exclusive_or_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  cpu.registers[destination_register] = operand_1 ^ operand_2;
+  cpu.set_register_value(destination_register, operand_1 ^ operand_2);
 
   if constexpr (SetFlags) {
     // Update the CSPR flags (only N and Z, C and V are not updated)
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
   }
 }
 
 template<bool SetFlags = false>
 void subtract_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  cpu.registers[destination_register] = operand_1 - operand_2;
+  cpu.set_register_value(destination_register, operand_1 - operand_2);
 
   if constexpr (SetFlags) {
     // Update the CSPR flags
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
 
     // Update the Carry flag
@@ -324,11 +324,11 @@ void reverse_subtract_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8
 
 template<bool SetFlags = false>
 void add_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  cpu.registers[destination_register] = operand_1 + operand_2;
+  cpu.set_register_value(destination_register, operand_1 + operand_2);
 
   if constexpr (SetFlags) {
     // Update the CSPR flags
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
 
     // Update the Carry flag
@@ -353,11 +353,11 @@ void add_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destinatio
 template<bool SetFlags = false>
 void add_with_carry_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
   uint32_t carry = (cpu.cspr & 0x20000000) ? 1 : 0;
-  cpu.registers[destination_register] = operand_1 + operand_2 + carry;
+  cpu.set_register_value(destination_register, operand_1 + operand_2 + carry);
 
   if constexpr (SetFlags) {
     // Update the CSPR flags
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
 
     // Update the Carry flag
@@ -382,11 +382,11 @@ void add_with_carry_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t
 template<bool SetFlags = false>
 void subtract_with_carry_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
   uint32_t carry = (cpu.cspr & 0x20000000) ? 1 : 0;
-  cpu.registers[destination_register] = operand_1 - operand_2 + carry - 1;
+  cpu.set_register_value(destination_register, operand_1 - operand_2 + carry - 1);
 
   if constexpr (SetFlags) {
     // Update the CSPR flags
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
 
     // Update the Carry flag
@@ -479,51 +479,55 @@ void test_add_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t desti
 
 template<bool SetFlags = false>
 void or_operation(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  cpu.registers[destination_register] = operand_1 | operand_2;
+  cpu.set_register_value(destination_register, operand_1 | operand_2);
 
   if constexpr (SetFlags) {
     // Update the CSPR flags (only N and Z, C and V are not updated)
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
   }
 }
 
 template<bool SetFlags = false>
 void move_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  cpu.registers[destination_register] = operand_2;
+  cpu.set_register_value(destination_register, operand_2);
 
   if constexpr (SetFlags) {
     // Update the CSPR flags, but do not update the C and V flags
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
   }
 }
 
 template<bool SetFlags = false>
 void bit_clear_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  cpu.registers[destination_register] = operand_1 & ~operand_2;
+  cpu.set_register_value(destination_register, operand_1 & ~operand_2);
 
   if constexpr (SetFlags) {
     // Update the CSPR flags (only N and Z, C and V are not updated)
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
   }
 }
 
 template<bool SetFlags = false>
 void move_not_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  cpu.registers[destination_register] = ~operand_2;
+  cpu.set_register_value(destination_register, ~operand_2);
 
   if constexpr (SetFlags) {
     // Update the CSPR flags (only N and Z, C and V are not updated)
-    uint32_t result = cpu.registers[destination_register];
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
   }
 }
 
-void automatically_restore_cspr_if_applicable(CPU& cpu, uint8_t opcode) {
+void automatically_restore_cspr_if_applicable(CPU& cpu, uint8_t opcode, uint8_t destination_register) {
   // Ignore instructions that don't write to the destination register.
   if (opcode == TST || opcode == TEQ || opcode == CMP || opcode == CMN) {
+    return;
+  }
+
+  if (destination_register != PC) {
     return;
   }
 
@@ -542,49 +546,49 @@ void register_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, ui
   if (shift_is_register) {
     // PC should be 12 bytes ahead if the shift amount is in a register
     // Why? Prefetching.
-    cpu.registers[PC] += 3 * ARM_INSTRUCTION_SIZE;
+    cpu.set_register_value(PC, cpu.get_register_value(PC) + 3 * ARM_INSTRUCTION_SIZE);
   } else {
     // PC should be 8 bytes ahead if the shift amount is an immediate value
     // Why? Prefetching.
-    cpu.registers[PC] += 2 * ARM_INSTRUCTION_SIZE;
+    cpu.set_register_value(PC, cpu.get_register_value(PC) + 2 * ARM_INSTRUCTION_SIZE);
   }
 
-  uint32_t operand_1 = cpu.registers[operand_1_register];
+  uint32_t operand_1 = cpu.get_register_value(operand_1_register);
   uint32_t shifted_operand_2 = apply_shift_operation<SetFlags>(cpu, operand_2);
   Op(cpu, operand_1, shifted_operand_2, destination_register);
 
   if constexpr (SetFlags) {
-    automatically_restore_cspr_if_applicable(cpu, opcode);
+    automatically_restore_cspr_if_applicable(cpu, opcode, destination_register);
   }
 
   if (destination_register != PC) {
     // Revert the prefetching offset and set the PC to the next instruction.
-    cpu.registers[PC] -= shift_is_register ? 2 * ARM_INSTRUCTION_SIZE : ARM_INSTRUCTION_SIZE;
+    cpu.set_register_value(PC, cpu.get_register_value(PC) - shift_is_register ? 2 * ARM_INSTRUCTION_SIZE : ARM_INSTRUCTION_SIZE);
   }
 }
 
 template<void Op(CPU&, uint32_t, uint32_t, uint8_t), bool SetFlags = false>
 void immediate_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, uint16_t operand_2, uint8_t destination_register) {
   // Account for prefetching.
-  cpu.registers[PC] += 2 * ARM_INSTRUCTION_SIZE;
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + 2 * ARM_INSTRUCTION_SIZE);
   
-  uint32_t operand_1 = cpu.registers[operand_1_register];
+  uint32_t operand_1 = cpu.get_register_value(operand_1_register);
   uint32_t operand_2_immediate = apply_rotate_operation<SetFlags>(cpu, operand_2);
   Op(cpu, operand_1, operand_2_immediate, destination_register);
 
   if constexpr (SetFlags) {
-    automatically_restore_cspr_if_applicable(cpu, opcode);
+    automatically_restore_cspr_if_applicable(cpu, opcode, destination_register);
   }
 
   if (destination_register != PC) {
     // Revert the prefetching offset and set the PC to the next instruction.
-    cpu.registers[PC] -= ARM_INSTRUCTION_SIZE;
+    cpu.set_register_value(PC, cpu.get_register_value(PC) - ARM_INSTRUCTION_SIZE);
   }
 }
 
-constexpr uint32_t SET_CONDITIONS = 1 << 20;
-constexpr uint32_t IMMEDIATE = 1 << 25;
-constexpr uint32_t SOURCE_SCSPR = 1 << 22;
+static constexpr uint32_t SET_CONDITIONS = 1 << 20;
+static constexpr uint32_t IMMEDIATE = 1 << 25;
+static constexpr uint32_t SOURCE_SCSPR = 1 << 22;
 
 #define EXPAND_PERMUTATIONS(name) \
   register_operation<name<false>>, \
@@ -674,13 +678,13 @@ void prepare_data_processing(CPU& cpu) {
     // Move CSPR to Register
     uint32_t opcode = 0x10F0000 | (destination_register << 12);
     cpu.arm_instructions[opcode] = [destination_register](CPU& cpu) {
-      cpu.registers[destination_register] = cpu.cspr;
+      cpu.set_register_value(destination_register, cpu.cspr);
     };
 
     // Move SCSPR to Register
     opcode = opcode | SOURCE_SCSPR;
     cpu.arm_instructions[opcode] = [destination_register](CPU& cpu) {
-      cpu.registers[destination_register] = cpu.mode_to_scspr[cpu.cspr & 0x1F];
+      cpu.set_register_value(destination_register, cpu.mode_to_scspr[cpu.cspr & 0x1F]);
     };
   }
 
@@ -695,9 +699,9 @@ void prepare_data_processing(CPU& cpu) {
     cpu.arm_instructions[opcode] = [source_register](CPU& cpu) {
       uint8_t mode = cpu.cspr & 0x1F;
       if (mode == User) {
-        cpu.cspr = cpu.registers[source_register] & 0xF0000000;
+        cpu.cspr = cpu.get_register_value(source_register) & 0xF0000000;
       } else {
-        cpu.cspr = cpu.registers[source_register];
+        cpu.cspr = cpu.get_register_value(source_register);
       }
     };
 
@@ -708,14 +712,14 @@ void prepare_data_processing(CPU& cpu) {
       if (mode == User) {
         throw std::runtime_error("Cannot move to SCSPR in User mode");
       }
-      cpu.mode_to_scspr[mode] = cpu.registers[source_register];
+      cpu.mode_to_scspr[mode] = cpu.get_register_value(source_register);
     };
 
     // Move Register to flags portion of CSPR (top 4 bits of value is moved to the top 4 bits of CSPR)
     // NOTE: CSPR is 12 bits, the middle 20 bits are reserved and should be preserved.
     opcode = 0x128F000 | source_register;
     cpu.arm_instructions[opcode] = [source_register](CPU& cpu) {
-      cpu.cspr = (cpu.cspr & 0x0FFFFFFF) | (cpu.registers[source_register] & 0xF0000000);
+      cpu.cspr = (cpu.cspr & 0x0FFFFFFF) | (cpu.get_register_value(source_register) & 0xF0000000);
     };
   }
 
@@ -744,25 +748,28 @@ void prepare_data_processing(CPU& cpu) {
 
 template<bool SetFlags = false, bool Accumulate = false>
 void multiply_op(CPU& cpu, uint8_t destination_register, uint8_t reg_operand_1, uint8_t reg_operand_2, uint8_t accum_reg) {
-  cpu.registers[destination_register] = cpu.registers[reg_operand_1] * cpu.registers[reg_operand_2];
+  cpu.set_register_value(accum_reg, cpu.get_register_value(reg_operand_1) * cpu.get_register_value(reg_operand_2));
   if constexpr (Accumulate) {
-    cpu.registers[destination_register] += cpu.registers[accum_reg];
+    cpu.set_register_value(
+      destination_register,
+      cpu.get_register_value(destination_register) + cpu.get_register_value(accum_reg)
+    );
   }
   if constexpr (SetFlags) {
-    update_negative_and_zero_cspr_flags(cpu, cpu.registers[destination_register]);
+    update_negative_and_zero_cspr_flags(cpu, cpu.get_register_value(destination_register));
   }
 }
 
 template<bool SetFlags = false, bool Accumulate = false>
 void multiply_long_op(CPU& cpu, uint8_t destination_register_low, uint8_t destination_register_high, uint8_t reg_operand_1, uint8_t reg_operand_2) {
-  uint64_t result = (uint64_t)cpu.registers[reg_operand_1] * (uint64_t)cpu.registers[reg_operand_2]
+  uint64_t result = (uint64_t)cpu.get_register_value(reg_operand_1) * (uint64_t)cpu.get_register_value(reg_operand_2)
   if constexpr (Accumulate) {
-    uint64_t accumulator = (uint64_t)cpu.registers[destination_register_high] << 32 | cpu.registers[destination_register_low];
+    uint64_t accumulator = (uint64_t)cpu.get_register_value(destination_register_high) << 32 | cpu.get_register_value(destination_register_low);
     result += accumulator;
   }
 
-  cpu.registers[destination_register_low] = result & 0xFFFFFFFF;
-  cpu.registers[destination_register_high] = result >> 32;
+  cpu.set_register_value(destination_register_low, result & 0xFFFFFFFF);
+  cpu.set_register_value(destination_register_high, result >> 32);
 
   if constexpr (SetFlags) {
     update_negative_and_zero_cspr_flags<uint64_t, int64_t>(cpu, result);
@@ -771,14 +778,14 @@ void multiply_long_op(CPU& cpu, uint8_t destination_register_low, uint8_t destin
 
 template<bool SetFlags = false, bool Accumulate = false>
 void multiply_long_signed_op(CPU& cpu, uint8_t destination_register_low, uint8_t destination_register_high, uint8_t reg_operand_1, uint8_t reg_operand_2) {
-  int64_t result = (int64_t)(int32_t)cpu.registers[reg_operand_1] * (int64_t)(int32_t)cpu.registers[reg_operand_2];
+  int64_t result = (int64_t)(int32_t)cpu.get_register_value(reg_operand_1) * (int64_t)(int32_t)cpu.get_register_value(reg_operand_2);
   if constexpr (Accumulate) {
-    int64_t accumulator = (int64_t)(int32_t)cpu.registers[destination_register_high] << 32 | cpu.registers[destination_register_low];
+    int64_t accumulator = (int64_t)(int32_t)cpu.get_register_value(destination_register_high) << 32 | cpu.get_register_value(destination_register_low);
     result += accumulator;
   }
 
-  cpu.registers[destination_register_low] = result & 0xFFFFFFFF;
-  cpu.registers[destination_register_high] = result >> 32;
+  cpu.set_register_value(destination_register_low, result & 0xFFFFFFFF);
+  cpu.set_register_value(destination_register_high, result >> 32);
 
   if constexpr (SetFlags) {
     update_negative_and_zero_cspr_flags<int64_t, int64_t>(cpu, result);
@@ -936,17 +943,496 @@ void prepare_multiply(CPU& cpu) {
 // ARM - Load and Store (LDR, STR)
 // =================================================================================================
 
+// Control flags = Immediate | Pre/Post | Up/Down | Byte/Word | WriteBack (5 bits)
+static constexpr uint8_t REGISTER_OFFSET = 1 << 4;
+static constexpr uint8_t PRE_TRANSFER = 1 << 3;
+static constexpr uint8_t UP = 1 << 2;
+static constexpr uint8_t BYTE_QUANTITY = 1 << 1;
+static constexpr uint8_t WRITE_BACK = 1;
+
+void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t offset, uint8_t control_flags) {
+  uint32_t base_address = cpu.get_register_value(base_register);
+  if (base_register == PC) {
+    // If PC is the base register, it should be 8 bytes ahead.
+    base_address += 8;
+  }
+
+  uint32_t value = cpu.get_register_value(source_register);
+  if (source_register == PC) {
+    // If PC is the source register, it should be 12 bytes ahead.
+    value += 12;
+  }
+
+  uint32_t full_offset = 0;
+  bool is_pre_transfer = control_flags & PRE_TRANSFER;
+
+  if (control_flags & REGISTER_OFFSET) {
+    full_offset = apply_shift_operation(cpu, offset);
+  } else {
+    full_offset = (uint32_t)offset;
+  }
+
+  if (is_pre_transfer) {
+    base_address += (control_flags & UP) ? full_offset : -full_offset;
+  }
+
+  if (control_flags & BYTE_QUANTITY) {
+    cpu.memory[base_address] = value & 0xFF;
+  } else {
+    *(uint32_t*)&cpu.memory[base_address] = value;
+  }
+
+  if (!is_pre_transfer) {
+    base_address += (control_flags & UP) ? full_offset : -full_offset;
+  }
+
+  // Write back always occurs if the indexing occurs after the transfer.
+  if ((control_flags & WRITE_BACK) || !is_pre_transfer) {
+    cpu.set_register_value(base_register, base_address);
+  }
+}
+
+void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint16_t offset, uint8_t control_flags) {
+  uint32_t base_address = cpu.get_register_value(base_register);
+  uint32_t full_offset = 0;
+  bool is_pre_transfer = control_flags & PRE_TRANSFER;
+
+  if (control_flags & REGISTER_OFFSET) {
+    full_offset = apply_shift_operation(cpu, offset);
+  } else {
+    full_offset = (uint32_t)offset;
+  }
+
+  if (is_pre_transfer) {
+    base_address += (control_flags & UP) ? full_offset : -full_offset;
+  }
+
+  // TODO: Figure out endianness
+  // TODO: This needs rotation built in, unaligned addresses should be handled differently.
+  // TODO: Basically you can't access memory outside a word boundary, so it rotates the word.
+  // TODO: So fucking weird.
+  if (control_flags & BYTE_QUANTITY) {
+    cpu.set_register_value(destination_register, cpu.memory[base_address] & 0xFF);
+  } else {
+    uint32_t word_aligned_address = base_address & ~3;
+    uint32_t word_aligned_value = *(uint32_t*)&cpu.memory[word_aligned_address];
+    if (base_address != word_aligned_address) {
+      uint32_t offset_from_word = base_address - word_aligned_address;
+      uint32_t value = (word_aligned_value >> (offset_from_word * 8)) | (word_aligned_value << (32 - (offset_from_word * 8)));
+      cpu.set_register_value(destination_register, value);
+    } else {
+      cpu.set_register_value(destination_register, word_aligned_value);
+    }
+
+  }
+
+  if (!is_pre_transfer) {
+    base_address += (control_flags & UP) ? full_offset : -full_offset;
+  }
+
+  // Write back always occurs if the indexing occurs after the transfer.
+  if ((control_flags & WRITE_BACK) || !is_pre_transfer) {
+    cpu.set_register_value(base_register, base_address);
+  }
+}
+
+enum OffsetMode {
+  Register,
+  Immediate,
+};
+
+template<OffsetMode Mode = Register>
+void load_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint16_t offset, uint8_t control_flags) {
+  uint32_t base_address = cpu.get_register_value(base_register);
+  uint32_t full_offset = 0;
+
+  if (base_register == PC && control_flags & (1 << 2)) {
+    throw std::runtime_error("Cannot write back to PC");
+  }
+
+  if (base_register == PC) {
+    // If PC is the base register, it should be 8 bytes ahead.
+    base_address += 8;
+  }
+
+  bool is_pre_transfer = control_flags & (1 << 4);
+  bool is_up = control_flags & (1 << 3);
+
+  if constexpr (Mode == Register) {
+    uint8_t offset_register = offset;
+    if (offset_register == PC) {
+      throw std::runtime_error("Cannot use PC as offset register");
+    }
+    full_offset = cpu.get_register_value(offset_register);
+  } else {
+    full_offset = offset;
+  }
+
+  if (is_pre_transfer) {
+    base_address += is_up ? full_offset : -full_offset;
+  }
+
+  uint32_t value = 0;
+  
+  bool is_halfword = control_flags & 1;
+  bool is_signed = control_flags & 2;
+  bool word_aligned = base_address & 3 == 0;
+  bool halfword_aligned = base_address & 1 == 0;
+
+  if (!word_aligned && !halfword_aligned) {
+    throw std::runtime_error("Unaligned memory access :(");
+  }
+
+  if (is_halfword && !is_signed) {
+    // LDRH - Load halfword
+    value = *(uint16_t*)&cpu.memory[base_address];
+  } else if (is_halfword && is_signed) {
+    // LDRSH - Load signed halfword
+    value = *(int16_t*)&cpu.memory[base_address];
+  } else if (is_signed) {
+    // LDRSB - Load signed byte
+    value = *(int8_t*)&cpu.memory[base_address];
+  } else {
+    // LDRB - Load byte
+    value = cpu.memory[base_address];
+  }
+
+  cpu.set_register_value(destination_register, value);
+
+  if (!is_pre_transfer) {
+    base_address += is_up ? full_offset : -full_offset;
+  }
+
+  // Write back always occurs if the indexing occurs after the transfer.
+  // TODO: Confirm this in the documentation.
+  bool is_write_back = control_flags & (1 << 2);
+  if (is_write_back || !is_pre_transfer) {
+    cpu.set_register_value(base_register, base_address);
+  }
+}
+
+template<OffsetMode Mode = Register>
+void store_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t offset, uint8_t control_flags) {
+  uint32_t base_address = cpu.get_register_value(base_register);
+  uint32_t full_offset = 0;
+
+  if (base_register == PC && control_flags & (1 << 2)) {
+    throw std::runtime_error("Cannot write back to PC");
+  }
+
+  if (base_register == PC) {
+    // If PC is the base register, it should be 8 bytes ahead.
+    base_address += 8;
+  }
+
+  bool is_pre_transfer = control_flags & (1 << 4);
+  bool is_up = control_flags & (1 << 3);
+
+  if constexpr (Mode == Register) {
+    uint8_t offset_register = offset;
+    full_offset = cpu.get_register_value(offset_register);
+  } else {
+    full_offset = offset;
+  }
+
+  if (is_pre_transfer) {
+    base_address += is_up ? full_offset : -full_offset;
+  }
+
+  uint32_t value = cpu.get_register_value(source_register);
+
+  if (source_register == PC) {
+    // If PC is the source register, the value should be 12 bytes ahead.
+    value += 12;
+  }
+  
+  bool is_halfword = control_flags & 1;
+  bool is_signed = control_flags & 2;
+
+  if (is_halfword && !is_signed) {
+    // STRH - Store halfword
+    *(uint16_t*)&cpu.memory[base_address] = value & 0xFFFF;
+  } else {
+    throw std::runtime_error("Cannot store use store op on signed halfword or bytes");
+  }
+
+  if (!is_pre_transfer) {
+    base_address += is_up ? full_offset : -full_offset;
+  }
+
+  // Write back always occurs if the indexing occurs after the transfer.
+  // TODO: Confirm this in the documentation.
+  bool is_write_back = control_flags & (1 << 2);
+  if (is_write_back || !is_pre_transfer) {
+    cpu.set_register_value(base_register, base_address);
+  }
+}
+
 void prepare_load_and_store(CPU& cpu) {
+  // Single Data Transfer (LDR, STR)
   uint32_t str_base_opcode = (1 << 26);
   uint32_t ldr_base_opcode = str_base_opcode | (1 << 20);
   
   for (uint16_t offset = 0; offset < 0x1000; offset++) {
     for (uint8_t base_register = 0; base_register < 16; base_register++) {
       for (uint8_t destination_register = 0; destination_register < 16; destination_register++) {
+        for (uint8_t control_flags = 0; control_flags < 32; control_flags++) {
+          uint32_t opcode = str_base_opcode | (control_flags << 21) | (base_register << 16) | (destination_register << 12) | (offset & 0xFFF);
+          cpu.arm_instructions[opcode] = [base_register, destination_register, offset, control_flags](CPU& cpu) {
+            store_op(cpu, base_register, destination_register, offset, control_flags);
+          };
 
+          opcode = ldr_base_opcode | (control_flags << 21) | (base_register << 16) | (destination_register << 12) | (offset & 0xFFF);
+          cpu.arm_instructions[opcode] = [base_register, destination_register, offset, control_flags](CPU& cpu) {
+            load_op(cpu, base_register, destination_register, offset, control_flags);
+          };
+        }
       }
     }
   }
+
+  // Halfword and Signed Byte Transfer (LDRH, STRH, LDRSB, LDRSH)
+  str_base_opcode = (1 << 4) | (1 << 7);
+  ldr_base_opcode = str_base_opcode | (1 << 20);
+
+  for (uint8_t base_register = 0; base_register < 16; base_register++) {
+    for (uint8_t rd_register = 0; rd_register < 16; rd_register++) {
+      for (uint8_t control_flags = 0; control_flags < 32; control_flags++) {
+        uint32_t pu_component = (control_flags & (3 << 3)) << 23;
+        uint32_t write_back_component = control_flags & (1 << 2) > 0 ? (1 << 21) : 0;
+        uint32_t sh_component = (control_flags & 3) << 5;
+        uint32_t control_flags_component = pu_component | write_back_component | sh_component;
+        uint32_t inputs_component = (base_register << 16) | (rd_register << 12);
+
+        for (uint8_t offset_register = 0; offset_register < 16; offset_register++) {
+          // Control flags = Pre/Post | Up/Down | WriteBack | Signed | Halfword (5 bits)
+          if ((control_flags & 3) == 0) {
+            // Skip when Signed and Halfword are both 0 (reserved for the swp instruction)
+            continue;
+          }
+
+          uint32_t opcode = str_base_opcode | control_flags_component | inputs_component | offset_register;
+          if ((control_flags & 2) == 0 && (control_flags & 1)) {
+            // Only allow non-signed halfword stores.
+            cpu.arm_instructions[opcode] = [base_register, rd_register, offset_register, control_flags](CPU& cpu) {
+              store_halfword_signed_byte(cpu, base_register, rd_register, (uint16_t)offset_register, control_flags);
+            };
+          }
+
+          opcode = ldr_base_opcode | control_flags_component | inputs_component | offset_register;
+          cpu.arm_instructions[opcode] = [base_register, rd_register, offset_register, control_flags](CPU& cpu) {
+            load_halfword_signed_byte(cpu, base_register, rd_register, (uint16_t)offset_register, control_flags);
+          };
+        }
+
+        for (uint8_t offset_immediate = 0; offset_immediate < 0x1000; offset_immediate++) {
+          uint32_t offset_component = (offset_immediate & 0xF) | ((offset_immediate & 0xF0) << 4);
+          uint32_t opcode = str_base_opcode | control_flags_component | inputs_component | (1 << 22) | offset_component;
+          if ((control_flags & 2) == 0 && (control_flags & 1)) {
+            // Only allow non-signed halfword stores.
+            cpu.arm_instructions[opcode] = [base_register, rd_register, offset_immediate, control_flags](CPU& cpu) {
+              store_halfword_signed_byte<Immediate>(cpu, base_register, rd_register, offset_immediate, control_flags);
+            };
+          }
+
+          opcode = ldr_base_opcode | control_flags_component | inputs_component | (1 << 22) | offset_component;
+          cpu.arm_instructions[opcode] = [base_register, rd_register, offset_immediate, control_flags](CPU& cpu) {
+            load_halfword_signed_byte<Immediate>(cpu, base_register, rd_register, offset_immediate, control_flags);
+          };
+        }
+      }
+    }
+  }
+}
+
+// =================================================================================================
+// ARM - Block Data Transfer (LDM, STM)
+// =================================================================================================
+
+// Control bits - Pre/Post - Up/Down - PSR / Force User Bit - Write Back (4 bits)
+
+void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t control_flags) {
+  uint32_t base_address = cpu.get_register_value(base_register);
+  uint32_t offset = (control_flags & (1 << 2)) ? 4 : -4;
+  bool is_pre_transfer = control_flags & (1 << 3);
+  bool write_back = control_flags & 1;
+  bool load_psr = control_flags & (1 << 1);
+  bool pc_in_list = register_list & (1 << 15);
+
+  if (base_register == PC) {
+    throw std::runtime_error("Cannot use PC as base register");
+  }
+
+  for (uint8_t register_idx = 0; register_idx < 16; register_idx++) {
+    if (register_list & (1 << register_idx) == 0) continue;
+
+    if (is_pre_transfer) {
+      // Pre-indexing
+      base_address += offset;
+    }
+
+    uint32_t value = *(uint32_t*)&cpu.memory[base_address];
+    if (!pc_in_list && load_psr) {
+      // Load directly into User mode registers if S bit is set and PC is not in the list.
+      cpu.registers[register_idx] = value;
+    } else {
+      // Load to the appropriate register set.
+      cpu.set_register_value(register_idx, *(uint32_t*)&cpu.memory[base_address]);
+    }
+
+    if (load_psr && register_idx == PC) {
+      // Load the current modes SPSR to CSPR when S bit is set and PC is in the list.
+      cpu.cspr = cpu.mode_to_scspr[cpu.cspr & 0x1F];
+    }
+
+    if (!is_pre_transfer) {
+      // Post-indexing
+      base_address += offset;
+    }
+  }
+
+  if (write_back) {
+    cpu.set_register_value(base_register, base_address);
+  }
+}
+
+void block_store(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t control_flags) {
+  uint32_t base_address = cpu.get_register_value(base_register);
+  uint32_t offset = (control_flags & (1 << 2)) ? 4 : -4;
+  bool is_pre_transfer = control_flags & (1 << 3);
+  bool write_back = control_flags & 1;
+  bool load_psr = control_flags & (1 << 1);
+  bool pc_in_list = register_list & (1 << 15);
+
+  if (base_register == PC) {
+    throw std::runtime_error("Cannot use PC as base register");
+  }
+
+  for (uint8_t register_idx = 0; register_idx < 16; register_idx++) {
+    if (register_list & (1 << register_idx) == 0) continue;
+
+    if (is_pre_transfer) {
+      // Pre-indexing
+      base_address += offset;
+    }
+
+    if (load_psr) {
+      // If S bit is set, load the User mode registers into the memory.
+      *(uint32_t*)&cpu.memory[base_address] = cpu.registers[register_idx];
+    } else {
+      *(uint32_t*)&cpu.memory[base_address] = cpu.get_register_value(register_idx);
+    }
+
+    if (!is_pre_transfer) {
+      // Post-indexing
+      base_address += offset;
+    }
+
+    // Make sure write back occurs after the first register is stored.
+    if (write_back) {
+      cpu.set_register_value(base_register, base_address);
+    }
+  }
+}
+
+void prepare_block_data_transfer(CPU& cpu) {
+  uint32_t stm_base_opcode = (1 << 27);
+  uint32_t ldm_base_opcode = stm_base_opcode | (1 << 20);
+
+  for (uint8_t base_register = 0; base_register < 16; base_register++) {
+    for (uint16_t register_list = 0; register_list < 0x10000; register_list++) {
+      for (uint8_t control_flags = 0; control_flags < 16; control_flags++) {
+        uint32_t input_component = (control_flags << 21) | (base_register << 16) | register_list;
+        uint32_t opcode = stm_base_opcode | input_component;
+        cpu.arm_instructions[opcode] = [base_register, register_list, control_flags](CPU& cpu) {
+          block_store(cpu, base_register, register_list, control_flags);
+        };
+
+        opcode = ldm_base_opcode | input_component;
+        cpu.arm_instructions[opcode] = [base_register, register_list, control_flags](CPU& cpu) {
+          block_load(cpu, base_register, register_list, control_flags);
+        };
+      }
+    }
+  }
+}
+
+// =================================================================================================
+// ARM - Single Data Swap (SWP)
+// =================================================================================================
+
+enum SwapMode {
+  SwapWord,
+  SwapByte,
+};
+
+template<SwapMode Mode>
+void single_data_swap(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint8_t source_register) {
+  uint32_t base_address = cpu.get_register_value(base_register);
+  uint32_t value = cpu.get_register_value(source_register);
+
+  if (base_register == PC || destination_register == PC || source_register == PC) {
+    throw std::runtime_error("Cannot use PC as a register in single data swap");
+  }
+
+  // Use the existing LDR and STR operations to handle the swap.
+  if constexpr (Mode == SwapByte) {
+    load_op(cpu, base_register, destination_register, 0, BYTE_QUANTITY);
+    store_op(cpu, base_register, source_register, 0, BYTE_QUANTITY);
+  } else {
+    load_op(cpu, base_register, destination_register, 0, 0);
+    store_op(cpu, base_register, source_register, 0, 0);
+  }
+}
+
+void prepare_single_data_swap(CPU& cpu) {
+  uint32_t base_word_opcode = (1 << 24) | (1 << 7) | (1 << 4);
+  uint32_t base_byte_opcode = base_word_opcode | (1 << 22);
+
+  for (uint8_t base_register = 0; base_register < 16; base_register++) {
+    for (uint8_t destination_register = 0; destination_register < 16; destination_register++) {
+      for (uint8_t source_register = 0; source_register < 16; source_register++) {
+        uint32_t input_component = (base_register << 16) | (destination_register << 12) | source_register;
+        uint32_t opcode = base_word_opcode | input_component;
+        cpu.arm_instructions[opcode] = [base_register, destination_register, source_register](CPU& cpu) {
+          single_data_swap<SwapWord>(cpu, base_register, destination_register, source_register);
+        };
+
+        opcode = base_byte_opcode | input_component;
+        cpu.arm_instructions[opcode] = [base_register, destination_register, source_register](CPU& cpu) {
+          single_data_swap<SwapByte>(cpu, base_register, destination_register, source_register);
+        };
+      }
+    }
+  }
+}
+
+// =================================================================================================
+// ARM - Software Interrupt (SWI)
+// =================================================================================================
+
+void software_interrupt(CPU& cpu) {
+  // Backup the current PC and CPSR
+  uint32_t current_pc = cpu.get_register_value(PC);
+  uint32_t current_cspr = cpu.cspr;
+
+  // Switch to Supervisor mode
+  cpu.cspr = Supervisor;
+
+  // Save the current PC to LR, and CSPR to SPSR_svc
+  cpu.set_register_value(LR, current_pc);
+  cpu.mode_to_scspr[Supervisor] = current_cspr;
+
+  // Set the PC to the SWI vector
+  cpu.set_register_value(PC, 0x08);
+}
+
+// =================================================================================================
+// ARM - Undefined Instruction
+// =================================================================================================
+
+void undefined_instruction(CPU& cpu) {
+  throw std::runtime_error("Undefined instruction, and we have no coprocessors to handle it.");
 }
 
 void cpu_reset(CPU& cpu) {
@@ -970,6 +1456,18 @@ void cpu_init(CPU& cpu) {
   // Multiply
   prepare_multiply(cpu);
 
+  // Load and Store
+  prepare_load_and_store(cpu);
+
+  // Block Data Transfer
+  prepare_block_data_transfer(cpu);
+
+  // Single Data Swap
+  prepare_single_data_swap(cpu);
+
+  // NOTE: No need to do the coprocessor instructions as the GBA doesn't use them.
+  // But we will need them to support NDS/3DS emulation in future.
+
   // Reset the CPU
   cpu_reset(cpu);
 }
@@ -979,9 +1477,26 @@ void execute_thumb_instruction(CPU& cpu, uint32_t instruction) {
 }
 
 bool evaluate_arm_condition(CPU& cpu, uint8_t condition) {
-  // TODO: Implement the condition code evaluation
-  return true;
+  switch (condition) {
+    case EQ: return (cpu.cspr & CSPR_N) != 0; // Z == 1
+    case NE: return (cpu.cspr & CSPR_N) == 0; // Z == 0
+    case CS: return (cpu.cspr & CSPR_C) != 0; // C == 1
+    case CC: return (cpu.cspr & CSPR_C) == 0; // C == 0
+    case MI: return (cpu.cspr & CSPR_N) != 0; // N == 1
+    case PL: return (cpu.cspr & CSPR_N) == 0; // N == 0
+    case VS: return (cpu.cspr & CSPR_V) != 0; // V == 1
+    case VC: return (cpu.cspr & CSPR_V) == 0; // V == 0
+    case HI: return (cpu.cspr & CSPR_C) != 0 && (cpu.cspr & CSPR_Z) == 0; // C == 1 && Z == 0
+    case LS: return (cpu.cspr & CSPR_C) == 0 || (cpu.cspr & CSPR_Z) != 0; // C == 0 || Z == 1
+    case GE: return ((cpu.cspr & CSPR_N) > 0) == ((cpu.cspr & CSPR_V) > 0); // N == V
+    case LT: return ((cpu.cspr & CSPR_N) > 0) != ((cpu.cspr & CSPR_V) > 0); // N != V
+    case GT: return (cpu.cspr & CSPR_Z) == 0 && ((cpu.cspr & CSPR_N) > 0) == ((cpu.cspr & CSPR_V) > 0); // Z == 0 && N == V
+    case LE: return (cpu.cspr & CSPR_Z) != 0 || ((cpu.cspr & CSPR_N) > 0) != ((cpu.cspr & CSPR_V) > 0); // Z == 1 || N != V
+    case AL: return true;
+    default: return false;
+  }
 }
+
 
 void execute_arm_instruction(CPU& cpu, uint32_t instruction) {
   // Decode the condition code (most significant 4 bits of the instruction)
@@ -989,12 +1504,23 @@ void execute_arm_instruction(CPU& cpu, uint32_t instruction) {
 
   // Evaluate the condition code
   if (!evaluate_arm_condition(cpu, condition)) {
-    cpu_arm_write_pc(cpu, cpu.registers[PC] + ARM_INSTRUCTION_SIZE);
+    cpu_arm_write_pc(cpu, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
     return;
   }
 
   // Normalize the instruction (set the condition code to 0) so we can look it up.
   uint32_t opcode = instruction & 0x0FFFFFFF;
+
+  // Check if the instruction is a software interrupt
+  if (opcode == ARM_SOFTWARE_INTERRUPT_OPCODE) {
+    software_interrupt(cpu);
+    return;
+  }
+
+  if (cpu.arm_instructions.find(opcode) == cpu.arm_instructions.end()) {
+    undefined_instruction(cpu);
+    return;
+  }
 
   // Execute the instruction (if the condition code is met)
   cpu.arm_instructions[opcode](cpu);
@@ -1002,7 +1528,7 @@ void execute_arm_instruction(CPU& cpu, uint32_t instruction) {
 
 uint32_t cpu_read_next_arm_instruction(CPU& cpu) {
   // Make sure the PC is 4-byte aligned
-  uint32_t pc = cpu.registers[PC] & ~0x3;
+  uint32_t pc = cpu.get_register_value(PC) & ~0x3;
 
   // Fetch the instruction from the memory
   uint32_t instruction = 0;
@@ -1013,7 +1539,7 @@ uint32_t cpu_read_next_arm_instruction(CPU& cpu) {
 
 uint16_t cpu_read_next_thumb_instruction(CPU& cpu) {
   // Make sure the PC is 2-byte aligned
-  uint32_t pc = cpu.registers[PC] & ~0x1;
+  uint32_t pc = cpu.get_register_value(PC) & ~0x1;
 
   // Fetch the instruction from the memory
   uint16_t instruction = 0;

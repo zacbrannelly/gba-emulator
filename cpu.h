@@ -3,8 +3,11 @@
 #include <map>
 #include <functional>
 
-constexpr uint8_t ARM_INSTRUCTION_SIZE = 4;
-constexpr uint8_t THUMB_INSTRUCTION_SIZE = 2;
+static constexpr uint8_t ARM_INSTRUCTION_SIZE = 4;
+static constexpr uint8_t THUMB_INSTRUCTION_SIZE = 2;
+
+static constexpr uint32_t ARM_SOFTWARE_INTERRUPT_OPCODE = 0x0F000000;
+static constexpr uint32_t ARM_UNDEFINED_OPCODE = (3 << 25) | (1 << 4);
 
 enum CPUOperatingMode {
   User = 0b10000,
@@ -34,6 +37,16 @@ enum ConditionCodes {
   AL = 0b1110, // Always (unconditional execution)
   NV = 0b1111  // Reserved, Ignore
 };
+
+// CSPR - Current Program Status Register
+// Bit 31 - N (Negative / Less Than)
+// Bit 30 - Z (Zero)
+// Bit 29 - C (Carry / Borrow / Extend)
+// Bit 28 - V (Overflow)
+static constexpr uint32_t CSPR_N = 1 << 31;
+static constexpr uint32_t CSPR_Z = 1 << 30;
+static constexpr uint32_t CSPR_C = 1 << 29;
+static constexpr uint32_t CSPR_V = 1 << 28;
 
 enum SpecialRegisters {
   SP = 13, // Stack Pointer
@@ -88,6 +101,15 @@ struct CPU {
     0, 0, 0, 0, 0, 0, 0, 0  // r8 - r15
   };
 
+  // For some CPU modes, the logical registers map to different physical registers (banked registers).
+  uint32_t banked_registers[5][7] = {
+    {0, 0, 0, 0, 0, 0, 0}, // FIQ
+    {0, 0, 0, 0, 0, 0, 0}, // IRQ
+    {0, 0, 0, 0, 0, 0, 0}, // Supervisor
+    {0, 0, 0, 0, 0, 0, 0}, // Abort
+    {0, 0, 0, 0, 0, 0, 0}  // Undefined
+  };
+
   // CSPR - Current Program Status Register
   // Bit 31 - N (Negative / Less Than)
   // Bit 30 - Z (Zero)
@@ -98,8 +120,6 @@ struct CPU {
   // Bit 6 - FIQ Interrupt Disable
   // Bit 5 - State bit (Tbit, 0 = ARM, 1 = THUMB)
   // Bit 4-0 - Mode bits (5 bits, see CPUOperatingMode)
-  // TODO: Figure out the address of the CPSR
-  // TODO: Figure out the address of the SPSR's
   uint32_t cspr = 0;
   std::map<uint8_t, uint32_t> mode_to_scspr = {
     {FIQ, 0},
@@ -112,12 +132,51 @@ struct CPU {
   // ARM Instruction Set (each condition code is set to zero)
   std::map<uint32_t, std::function<void(CPU&)>> arm_instructions;
 
-
   // Possible Conditions
   std::vector<uint32_t> conditions = {
     EQ, NE, CS, CC, MI, PL, VS, VC,
     HI, LS, GE, LT, GT, LE, AL, NV
   };
+
+  uint32_t get_register_value(uint8_t reg) {
+    uint8_t mode = cspr & 0x1F;
+    switch (mode) {
+      case FIQ:
+        if (reg >= 8 && reg <= 14) {
+          return banked_registers[FIQ][reg - 8];
+        }
+      case IRQ:
+      case Supervisor:
+      case Abort:
+      case Undefined:
+        if (reg == 13 || reg == 14) {
+          return banked_registers[mode][reg - 13];
+        }
+      default:
+        return registers[reg];
+    }
+  }
+
+  void set_register_value(uint8_t reg, uint32_t value) {
+    uint8_t mode = cspr & 0x1F;
+    switch (mode) {
+      case FIQ:
+        if (reg >= 8 && reg <= 14) {
+          banked_registers[FIQ][reg - 8] = value;
+          return;
+        }
+      case IRQ:
+      case Supervisor:
+      case Abort:
+      case Undefined:
+        if (reg == 13 || reg == 14) {
+          banked_registers[mode][reg - 13] = value;
+          return;
+        }
+      default:
+        registers[reg] = value;
+    }
+  }
 };
 
 void cpu_init(CPU& cpu);
