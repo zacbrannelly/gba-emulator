@@ -137,7 +137,7 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
   }
 
   switch (shift_type) {
-    case LOGICAL_LEFT:
+    case LOGICAL_LEFT: {
       if constexpr (SetFlags) {
         // Set the Carry flag to the last bit shifted out
         uint8_t last_bit = overflow_shift 
@@ -148,7 +148,8 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
           : cpu.cspr & ~0x20000000;
       }
       return overflow_shift ? 0 : value << shift_amount;
-    case LOGICAL_RIGHT:
+    }
+    case LOGICAL_RIGHT: {
       if constexpr (SetFlags) {
         // Set the Carry flag to the last bit shifted out
         uint8_t last_bit = overflow_shift
@@ -159,7 +160,8 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
           : cpu.cspr & ~0x20000000;
       }
       return overflow_shift ? 0 : value >> shift_amount;
-    case ARITHMETIC_RIGHT:
+    }
+    case ARITHMETIC_RIGHT: {
       int32_t signed_value = (int32_t)value;
       if constexpr (SetFlags) {
         // Set the Carry flag to the last bit shifted out
@@ -173,7 +175,8 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
       return overflow_shift 
         ? (signed_value < 0 ? -1 : 0)
         : (int32_t)value >> shift_amount;
-    case ROTATE_RIGHT:
+    }
+    case ROTATE_RIGHT: {
       if (is_rotate_right_extended) {
         // Fetch the previous Carry flag
         uint8_t carry = (cpu.cspr & 0x20000000) ? 1 : 0;
@@ -198,8 +201,10 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
         }
         return (value >> shift_amount) | (value << (32 - shift_amount));
       }
-    default:
+    }
+    default: {
       throw std::runtime_error("Unknown shift type");
+    }
   }
 }
 
@@ -328,7 +333,7 @@ void add_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destinatio
 
   if constexpr (SetFlags) {
     // Update the CSPR flags
-    uint32_t result = cpu.get_register(destination_register);
+    uint32_t result = cpu.get_register_value(destination_register);
     update_negative_and_zero_cspr_flags(cpu, result);
 
     // Update the Carry flag
@@ -563,7 +568,7 @@ void register_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, ui
 
   if (destination_register != PC) {
     // Revert the prefetching offset and set the PC to the next instruction.
-    cpu.set_register_value(PC, cpu.get_register_value(PC) - shift_is_register ? 2 * ARM_INSTRUCTION_SIZE : ARM_INSTRUCTION_SIZE);
+    cpu.set_register_value(PC, cpu.get_register_value(PC) - (shift_is_register ? 2 * ARM_INSTRUCTION_SIZE : ARM_INSTRUCTION_SIZE));
   }
 }
 
@@ -762,7 +767,7 @@ void multiply_op(CPU& cpu, uint8_t destination_register, uint8_t reg_operand_1, 
 
 template<bool SetFlags = false, bool Accumulate = false>
 void multiply_long_op(CPU& cpu, uint8_t destination_register_low, uint8_t destination_register_high, uint8_t reg_operand_1, uint8_t reg_operand_2) {
-  uint64_t result = (uint64_t)cpu.get_register_value(reg_operand_1) * (uint64_t)cpu.get_register_value(reg_operand_2)
+  uint64_t result = (uint64_t)cpu.get_register_value(reg_operand_1) * (uint64_t)cpu.get_register_value(reg_operand_2);
   if constexpr (Accumulate) {
     uint64_t accumulator = (uint64_t)cpu.get_register_value(destination_register_high) << 32 | cpu.get_register_value(destination_register_low);
     result += accumulator;
@@ -1076,8 +1081,8 @@ void load_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t destinat
   
   bool is_halfword = control_flags & 1;
   bool is_signed = control_flags & 2;
-  bool word_aligned = base_address & 3 == 0;
-  bool halfword_aligned = base_address & 1 == 0;
+  bool word_aligned = (base_address & 3) == 0;
+  bool halfword_aligned = (base_address & 1) == 0;
 
   if (!word_aligned && !halfword_aligned) {
     throw std::runtime_error("Unaligned memory access :(");
@@ -1199,7 +1204,7 @@ void prepare_load_and_store(CPU& cpu) {
     for (uint8_t rd_register = 0; rd_register < 16; rd_register++) {
       for (uint8_t control_flags = 0; control_flags < 32; control_flags++) {
         uint32_t pu_component = (control_flags & (3 << 3)) << 23;
-        uint32_t write_back_component = control_flags & (1 << 2) > 0 ? (1 << 21) : 0;
+        uint32_t write_back_component = (control_flags & (1 << 2)) > 0 ? (1 << 21) : 0;
         uint32_t sh_component = (control_flags & 3) << 5;
         uint32_t control_flags_component = pu_component | write_back_component | sh_component;
         uint32_t inputs_component = (base_register << 16) | (rd_register << 12);
@@ -1225,7 +1230,7 @@ void prepare_load_and_store(CPU& cpu) {
           };
         }
 
-        for (uint8_t offset_immediate = 0; offset_immediate < 0x1000; offset_immediate++) {
+        for (uint16_t offset_immediate = 0; offset_immediate < 0x1000; offset_immediate++) {
           uint32_t offset_component = (offset_immediate & 0xF) | ((offset_immediate & 0xF0) << 4);
           uint32_t opcode = str_base_opcode | control_flags_component | inputs_component | (1 << 22) | offset_component;
           if ((control_flags & 2) == 0 && (control_flags & 1)) {
@@ -1264,7 +1269,7 @@ void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t
   }
 
   for (uint8_t register_idx = 0; register_idx < 16; register_idx++) {
-    if (register_list & (1 << register_idx) == 0) continue;
+    if ((register_list & (1 << register_idx)) == 0) continue;
 
     if (is_pre_transfer) {
       // Pre-indexing
@@ -1309,7 +1314,7 @@ void block_store(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_
   }
 
   for (uint8_t register_idx = 0; register_idx < 16; register_idx++) {
-    if (register_list & (1 << register_idx) == 0) continue;
+    if ((register_list & (1 << register_idx)) == 0) continue;
 
     if (is_pre_transfer) {
       // Pre-indexing
@@ -1340,17 +1345,17 @@ void prepare_block_data_transfer(CPU& cpu) {
   uint32_t ldm_base_opcode = stm_base_opcode | (1 << 20);
 
   for (uint8_t base_register = 0; base_register < 16; base_register++) {
-    for (uint16_t register_list = 0; register_list < 0x10000; register_list++) {
+    for (uint32_t register_list = 0; register_list < 0x10000; register_list++) {
       for (uint8_t control_flags = 0; control_flags < 16; control_flags++) {
         uint32_t input_component = (control_flags << 21) | (base_register << 16) | register_list;
         uint32_t opcode = stm_base_opcode | input_component;
         cpu.arm_instructions[opcode] = [base_register, register_list, control_flags](CPU& cpu) {
-          block_store(cpu, base_register, register_list, control_flags);
+          block_store(cpu, base_register, (uint16_t)register_list, control_flags);
         };
 
         opcode = ldm_base_opcode | input_component;
         cpu.arm_instructions[opcode] = [base_register, register_list, control_flags](CPU& cpu) {
-          block_load(cpu, base_register, register_list, control_flags);
+          block_load(cpu, base_register, (uint16_t)register_list, control_flags);
         };
       }
     }

@@ -19,6 +19,12 @@ enum CPUOperatingMode {
   System = 0b11111
 };
 
+static constexpr uint8_t FIQ_BANKED_REGISTERS_IDX = 0;
+static constexpr uint8_t IRQ_BANKED_REGISTERS_IDX = 1;
+static constexpr uint8_t SUPERVISOR_BANKED_REGISTERS_IDX = 2;
+static constexpr uint8_t ABORT_BANKED_REGISTERS_IDX = 3;
+static constexpr uint8_t UNDEFINED_BANKED_REGISTERS_IDX = 4;
+
 enum ConditionCodes {
   EQ = 0b0000, // Z == 1, Equal
   NE = 0b0001, // Z == 0, Not Equal
@@ -109,6 +115,13 @@ struct CPU {
     {0, 0, 0, 0, 0, 0, 0}, // Abort
     {0, 0, 0, 0, 0, 0, 0}  // Undefined
   };
+  std::map<uint8_t, uint32_t> mode_to_banked_registers = {
+    {FIQ, 0},
+    {IRQ, 1},
+    {Supervisor, 2},
+    {Abort, 3},
+    {Undefined, 4}
+  };
 
   // CSPR - Current Program Status Register
   // Bit 31 - N (Negative / Less Than)
@@ -143,14 +156,14 @@ struct CPU {
     switch (mode) {
       case FIQ:
         if (reg >= 8 && reg <= 14) {
-          return banked_registers[FIQ][reg - 8];
+          return banked_registers[FIQ_BANKED_REGISTERS_IDX][reg - 8];
         }
       case IRQ:
       case Supervisor:
       case Abort:
       case Undefined:
         if (reg == 13 || reg == 14) {
-          return banked_registers[mode][reg - 13];
+          return banked_registers[mode_to_banked_registers[mode]][reg - 13];
         }
       default:
         return registers[reg];
@@ -162,7 +175,7 @@ struct CPU {
     switch (mode) {
       case FIQ:
         if (reg >= 8 && reg <= 14) {
-          banked_registers[FIQ][reg - 8] = value;
+          banked_registers[FIQ_BANKED_REGISTERS_IDX][reg - 8] = value;
           return;
         }
       case IRQ:
@@ -170,7 +183,7 @@ struct CPU {
       case Abort:
       case Undefined:
         if (reg == 13 || reg == 14) {
-          banked_registers[mode][reg - 13] = value;
+          banked_registers[mode_to_banked_registers[mode]][reg - 13] = value;
           return;
         }
       default:
