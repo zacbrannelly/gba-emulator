@@ -1,3 +1,3 @@
 # gba-emulator
 
-Toy Gameboy Advance emulator written in C++.
+Toy Game Boy Advance emulator written in C++.
