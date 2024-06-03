@@ -37,7 +37,7 @@ TEST_CASE("Branch (B)", "[arm, branch]") {
   }
 
   SECTION("Jump Before Program") {
-    // Load jump ahead ROM
+    // Load jump before ROM
     REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_branch_before.bin"));
     cpu.registers[PC] = 0x0;
 
