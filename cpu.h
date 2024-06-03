@@ -6,8 +6,22 @@
 static constexpr uint8_t ARM_INSTRUCTION_SIZE = 4;
 static constexpr uint8_t THUMB_INSTRUCTION_SIZE = 2;
 
+// The following constants are masks used to identify the type of instruction.
+// The order of the checks is important, so check in the order the constants are defined.
 static constexpr uint32_t ARM_SOFTWARE_INTERRUPT_OPCODE = 0x0F000000;
+static constexpr uint32_t ARM_COPROCESSOR_OPCODE = 3 << 26;
+static constexpr uint32_t ARM_BRANCH_OPCODE = 5 << 25;
+static constexpr uint32_t ARM_BLOCK_DATA_TRANSFER_OPCODE = 1 << 27;
 static constexpr uint32_t ARM_UNDEFINED_OPCODE = (3 << 25) | (1 << 4);
+static constexpr uint32_t ARM_SINGLE_DATA_TRANSFER_OPCODE = 1 << 26;
+static constexpr uint32_t ARM_HALFWORD_DATA_TRANSFER_IMMEDIATE_OPCODE = (1 << 22) | (1 << 7) | (1 << 4);
+static constexpr uint32_t ARM_HALFWORD_DATA_TRANSFER_REGISTER_OPCODE = (1 << 7) | (1 << 4);
+static constexpr uint32_t ARM_HALFWORD_DATA_TRANSFER_SH_MASK = (1 << 5) | (1 << 6); // SH > 0 for halfword register data transfer
+static constexpr uint32_t ARM_BRANCH_AND_EXCHANGE_OPCODE = 0x12FFF10;
+static constexpr uint32_t ARM_SINGLE_DATA_SWAP_OPCODE = (1 << 24) | (1 << 7) | (1 << 4);
+static constexpr uint32_t ARM_MULTIPLY_LONG_OPCODE = (1 << 23) | (1 << 7) | (1 << 4);
+static constexpr uint32_t ARM_MULTIPLY_OPCODE = (1 << 7) | (1 << 4); // SH == 0 for multiply
+// Any other instruction is a Data Processing instruction.
 
 enum CPUOperatingMode {
   User = 0b10000,
@@ -142,8 +156,8 @@ struct CPU {
     {Undefined, 0},
   };
 
-  // ARM Instruction Set (each condition code is set to zero)
-  std::map<uint32_t, std::function<void(CPU&)>> arm_instructions;
+  // ARM Data Processing Instruction Handlers
+  std::map<uint32_t, std::vector<std::function<void(CPU&, uint8_t, uint8_t, uint16_t, uint8_t)>>> arm_data_processing_instructions;
 
   // Possible Conditions
   std::vector<uint32_t> conditions = {
