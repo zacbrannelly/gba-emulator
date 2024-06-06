@@ -607,23 +607,33 @@ static constexpr uint32_t SOURCE_SCSPR = 1 << 22;
   immediate_operation<name, true>
 
 void decode_move_psr_to_register(CPU& cpu, uint32_t opcode) {
-  bool move_spsr = opcode & SOURCE_SCSPR;
+  bool source_cspr = opcode & SOURCE_SCSPR;
   uint8_t destination_register = (opcode >> 12) & 0xF;
-  cpu.set_register_value(destination_register, cpu.cspr);
+  if (source_cspr) {
+    uint8_t mode = cpu.cspr & 0x1F;
+    if (mode == User) {
+      throw std::runtime_error("Cannot get SPSR in User mode");
+    }
+    cpu.set_register_value(destination_register, cpu.mode_to_scspr[mode]);
+  } else {
+    cpu.set_register_value(destination_register, cpu.cspr);
+  }
+
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 void decode_move_register_to_psr(CPU& cpu, uint32_t opcode) {
   bool move_spsr = opcode & SOURCE_SCSPR;
   uint8_t source_register = opcode & 0xF;
   uint8_t mode = cpu.cspr & 0x1F;
-  bool flag_bits_only = opcode & (1 << 16);
+  bool transfer_all_bits = opcode & (1 << 16);
 
   if (move_spsr && mode == User) {
     throw std::runtime_error("Cannot move from SPSR in User mode");
   }
 
   // Only the flag bits are being changed.
-  if (flag_bits_only) {
+  if (!transfer_all_bits) {
     // NOTE: CSPR is 12 bits, the middle 20 bits are reserved and should be preserved.
     bool immediate = opcode & (1 << 29);
     if (immediate) {
@@ -641,6 +651,8 @@ void decode_move_register_to_psr(CPU& cpu, uint32_t opcode) {
         cpu.cspr = (cpu.cspr & 0x0FFFFFFF) | (cpu.get_register_value(source_register) & 0xF0000000);
       }
     }
+    // Increment the PC to the next instruction
+    cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
     return;
   }
 
@@ -651,6 +663,9 @@ void decode_move_register_to_psr(CPU& cpu, uint32_t opcode) {
   } else {
     cpu.cspr = cpu.get_register_value(source_register);
   }
+
+  // Increment the PC to the next instruction
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 static constexpr uint32_t REGISTER_AND_NO_CSPR = 0;

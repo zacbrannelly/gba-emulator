@@ -240,7 +240,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
     // 2 - 1 + 0 - 1 = 0
     REQUIRE(cpu.get_register_value(0) == 0x0);
 
-    // rscs r0, r1, r2
+    // rsc r0, r1, r2
     cpu.set_register_value(PC, 0x0);
     cpu.set_register_value(1, 0x1);
     cpu.set_register_value(2, 0x2);
@@ -250,5 +250,222 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
 
     // 2 - 1 + 1 - 1 = 1
     REQUIRE(cpu.get_register_value(0) == 0x1);
+  }
+
+  SECTION("TST") {
+    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/tst.bin"));
+    cpu.cspr = (uint32_t)User;
+    cpu.set_register_value(PC, 0x0);
+
+    // tst r0, r1
+    cpu.set_register_value(0, 0x1);
+    cpu.set_register_value(1, 0x1);
+    cpu_cycle(cpu);
+
+    // 1 & 1 = 1
+    REQUIRE_FALSE(cpu.cspr & (1 << 30)); // Z (Zero) flag should not be set.
+
+    // tst r0, r1
+    cpu.set_register_value(PC, 0x0);
+    cpu.set_register_value(0, 0x1);
+    cpu.set_register_value(1, 0x0);
+    cpu_cycle(cpu);
+
+    // 1 & 0 = 0
+    REQUIRE(cpu.cspr & (1 << 30)); // Z (Zero) flag should be set.
+  }
+
+  SECTION("TEQ") {
+    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/teq.bin"));
+    cpu.cspr = (uint32_t)User;
+    cpu.set_register_value(PC, 0x0);
+
+    // teq r0, r1
+    cpu.set_register_value(0, 0x1);
+    cpu.set_register_value(1, 0x1);
+    cpu_cycle(cpu);
+
+    // 1 ^ 1 = 0
+    REQUIRE(cpu.cspr & (1 << 30)); // Z (Zero) flag should be set.
+
+    // teq r0, r1
+    cpu.set_register_value(PC, 0x0);
+    cpu.set_register_value(0, 0x1);
+    cpu.set_register_value(1, 0x0);
+    cpu_cycle(cpu);
+
+    // 1 ^ 0 = 1
+    REQUIRE_FALSE(cpu.cspr & (1 << 30)); // Z (Zero) flag should not be set.
+  }
+
+  SECTION("CMP") {
+    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/cmp.bin"));
+    cpu.cspr = (uint32_t)User;
+    cpu.set_register_value(PC, 0x0);
+
+    // cmp r0, r1
+    cpu.set_register_value(0, 0x1);
+    cpu.set_register_value(1, 0x1);
+    cpu_cycle(cpu);
+
+    // 1 - 1 = 0
+    REQUIRE(cpu.cspr & (1 << 30)); // Z (Zero) flag should be set.
+
+    // cmp r0, r1
+    cpu.set_register_value(PC, 0x0);
+    cpu.set_register_value(0, 0x1);
+    cpu.set_register_value(1, 0x0);
+    cpu_cycle(cpu);
+
+    // 1 - 0 = 1
+    REQUIRE_FALSE(cpu.cspr & (1 << 30)); // Z (Zero) flag should not be set.
+  }
+
+  SECTION("CMN") {
+    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/cmn.bin"));
+    cpu.cspr = (uint32_t)User;
+    cpu.set_register_value(PC, 0x0);
+
+    // cmn r0, r1
+    cpu.set_register_value(0, 0x1);
+    cpu.set_register_value(1, 0x1);
+    cpu_cycle(cpu);
+
+    // 1 + 1 = 2
+    REQUIRE_FALSE(cpu.cspr & (1 << 30)); // Z (Zero) flag should not be set.
+
+    // cmn r0, r1
+    cpu.set_register_value(PC, 0x0);
+    cpu.set_register_value(0, 0x1);
+    cpu.set_register_value(1, (uint32_t)-1);
+    cpu_cycle(cpu);
+
+    // 1 + -1 = 0
+    REQUIRE(cpu.cspr & (1 << 30)); // Z (Zero) flag should be set.
+  }
+
+  SECTION("ORR") {
+    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/orr.bin"));
+    cpu.cspr = (uint32_t)User;
+    cpu.set_register_value(PC, 0x0);
+
+    // orr r0, r1, r2
+    cpu.set_register_value(1, 0x1);
+    cpu.set_register_value(2, 0x1);
+    cpu_cycle(cpu);
+
+    // 1 | 1 = 1
+    REQUIRE(cpu.get_register_value(0) == 0x1);
+
+    // orr r0, r1, r2
+    cpu.set_register_value(PC, 0x0);
+    cpu.set_register_value(1, 0x1);
+    cpu.set_register_value(2, 0x0);
+    cpu_cycle(cpu);
+
+    // 1 | 0 = 1
+    REQUIRE(cpu.get_register_value(0) == 0x1);
+
+    // orr r0, r1, r2
+    cpu.set_register_value(PC, 0x0);
+    cpu.set_register_value(1, 0x0);
+    cpu.set_register_value(2, 0x0);
+    cpu_cycle(cpu);
+
+    // 0 | 0 = 0
+    REQUIRE(cpu.get_register_value(0) == 0x0);
+  }
+
+  SECTION("BIC") {
+    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/bic.bin"));
+    cpu.cspr = (uint32_t)User;
+    cpu.set_register_value(PC, 0x0);
+
+    // bic r0, r1, r2
+    cpu.set_register_value(1, 0x1);
+    cpu.set_register_value(2, 0x1);
+    cpu_cycle(cpu);
+
+    // 1 & ~1 = 0
+    REQUIRE(cpu.get_register_value(0) == 0x0);
+
+    // bic r0, r1, r2
+    cpu.set_register_value(PC, 0x0);
+    cpu.set_register_value(1, 0x1);
+    cpu.set_register_value(2, 0x0);
+    cpu_cycle(cpu);
+
+    // 1 & ~0 = 1
+    REQUIRE(cpu.get_register_value(0) == 0x1);
+
+    // bic r0, r1, r2
+    cpu.set_register_value(PC, 0x0);
+    cpu.set_register_value(1, 0x0);
+    cpu.set_register_value(2, 0x0);
+    cpu_cycle(cpu);
+
+    // 0 & ~0 = 0
+    REQUIRE(cpu.get_register_value(0) == 0x0);
+  }
+
+  SECTION("MVN") {
+    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/mvn.bin"));
+    cpu.cspr = (uint32_t)User;
+    cpu.set_register_value(PC, 0x0);
+
+    // mvn r0, r1
+    cpu.set_register_value(1, 0x1);
+    cpu_cycle(cpu);
+
+    // ~1 = 0xFFFFFFFE
+    REQUIRE(cpu.get_register_value(0) == 0xFFFFFFFE);
+
+    // mvn r0, r1
+    cpu.set_register_value(PC, 0x0);
+    cpu.set_register_value(1, 0x0);
+    cpu_cycle(cpu);
+
+    // ~0 = 0xFFFFFFFF
+    REQUIRE(cpu.get_register_value(0) == 0xFFFFFFFF);
+  }
+
+  SECTION("MRS") {
+    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/mrs.bin"));
+    cpu.cspr = (uint32_t)Supervisor;
+    cpu.set_register_value(PC, 0x0);
+
+    // mrs r0, cpsr
+    cpu_cycle(cpu);
+
+    // CPSR should be copied to R0.
+    REQUIRE(cpu.get_register_value(0) == cpu.cspr);
+
+    // mrs r0, spsr
+    cpu.mode_to_scspr[Supervisor] = 0x12345678;
+    cpu_cycle(cpu);
+
+    // SPSR should be copied to R0.
+    REQUIRE(cpu.get_register_value(0) == 0x12345678);
+  }
+
+  SECTION("MSR") {
+    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/msr.bin"));
+    cpu.cspr = (uint32_t)Supervisor;
+    cpu.set_register_value(PC, 0x0);
+
+    // msr cpsr, r0
+    cpu.set_register_value(0, (uint32_t)User);
+    cpu_cycle(cpu);
+
+    // R0 should be copied to CPSR.
+    REQUIRE(cpu.cspr == (uint32_t)User);
+
+    // msr spsr, r0
+    cpu.cspr = (uint32_t)Supervisor;
+    cpu.set_register_value(0, 0x87654321);
+    cpu_cycle(cpu);
+
+    // R0 should be copied to SPSR.
+    REQUIRE(cpu.mode_to_scspr[Supervisor] == 0x87654321);
   }
 }
