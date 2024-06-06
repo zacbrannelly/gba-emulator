@@ -18,8 +18,10 @@ g++ -o ./tests/bin/test_runner \
   utils.cpp \
   -I./3rdparty \
   -I./ \
-  -std=c++20
+  -std=c++20 \
+  -stdlib=libc++ \
+  -g
 
 # Run the test runner
 echo "Running test runner..."
-./tests/bin/test_runner
+lldb ./tests/bin/test_runner

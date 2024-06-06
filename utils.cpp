@@ -1,6 +1,7 @@
 #include "utils.h"
 #include <fstream>
 #include <stdexcept>
+#include <cstring>
 
 void load_rom(CPU& cpu, const std::string& filename) {
   std::ifstream bin_in(filename, std::ios::binary);

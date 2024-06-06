@@ -1,5 +1,6 @@
 #include "cpu.h"
 #include <iostream>
+#include <cstring>
 
 // =================================================================================================
 // ARM - Branch and Exchange
@@ -94,7 +95,7 @@ void decode_branch_and_link(CPU& cpu, uint32_t opcode) {
 // ARM - Data Processing
 // =================================================================================================
 
-template<bool SetFlags = false>
+template<bool SetFlags = false, bool ImmediateInstruction = false>
 uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_type) {
   // If LSL with shift amount 0, then the value is not shifted.
   if (shift_amount == 0 && shift_type == LOGICAL_LEFT) {
@@ -114,7 +115,13 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
   }
 
   // SPECIAL CASE: Since ROR with shift amount 0 is the same as LSL 0, we use this encoding to represent a special RRX operation.
-  bool is_rotate_right_extended = shift_type == ROTATE_RIGHT && shift_amount == 0;
+  bool is_rotate_right_extended = shift_type == ROTATE_RIGHT && shift_amount == 0 && !ImmediateInstruction;
+
+  // If ROR with shift amount 0, then the value is not shifted.
+  // This is ignored if the special case for RRX is enabled.
+  if (shift_amount == 0 && shift_type == ROTATE_RIGHT && ImmediateInstruction) {
+    return value;
+  }
   
   // Make sure to handle shift amounts greater than 32.
   bool overflow_shift = shift_amount > 32;
@@ -235,7 +242,7 @@ uint32_t apply_shift_operation(CPU& cpu, uint16_t operand_2) {
   return shift<SetFlags>(cpu, cpu.get_register_value(register_operand_2), shift_amount, shift_type);
 }
 
-template<bool SetFlags = false>
+template<bool SetFlags = false, bool ImmediateInstruction = false>
 uint32_t apply_rotate_operation(CPU& cpu, uint16_t operand_2) {
   // The immediate is extracted from the last 8 bits and zero-extended to 32 bits.
   uint32_t operand_2_immediate = (uint32_t)(operand_2 & 0xFF);
@@ -243,7 +250,7 @@ uint32_t apply_rotate_operation(CPU& cpu, uint16_t operand_2) {
   // The rotate amount is twice the value of the 4-bit immediate value.
   uint8_t rotate_amount = 2 * ((operand_2 >> 8) & 0xF);
 
-  return shift<SetFlags>(cpu, operand_2_immediate, rotate_amount, ROTATE_RIGHT);
+  return shift<SetFlags, ImmediateInstruction>(cpu, operand_2_immediate, rotate_amount, ROTATE_RIGHT);
 }
 
 template<typename ResultType = uint32_t, typename SignedType = int32_t>
@@ -533,6 +540,8 @@ void automatically_restore_cspr_if_applicable(CPU& cpu, uint8_t opcode, uint8_t 
   auto const has_saved_cpu_state = mode != User && mode != System;
   if (has_saved_cpu_state) {
     cpu.cspr = cpu.mode_to_scspr[mode];
+  } else {
+    throw std::runtime_error("Cannot restore CSPR for User or System mode");
   }
 }
 
@@ -569,7 +578,7 @@ void immediate_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, u
   cpu.set_register_value(PC, cpu.get_register_value(PC) + 2 * ARM_INSTRUCTION_SIZE);
   
   uint32_t operand_1 = cpu.get_register_value(operand_1_register);
-  uint32_t operand_2_immediate = apply_rotate_operation<SetFlags>(cpu, operand_2);
+  uint32_t operand_2_immediate = apply_rotate_operation<SetFlags, true /* disable special cases (e.g. RRX on ROR #0) */>(cpu, operand_2);
   Op(cpu, operand_1, operand_2_immediate, destination_register);
 
   if constexpr (SetFlags) {

@@ -147,7 +147,7 @@ struct CPU {
   // Bit 6 - FIQ Interrupt Disable
   // Bit 5 - State bit (Tbit, 0 = ARM, 1 = THUMB)
   // Bit 4-0 - Mode bits (5 bits, see CPUOperatingMode)
-  uint32_t cspr = 0;
+  uint32_t cspr = (uint32_t)User;
   std::map<uint8_t, uint32_t> mode_to_scspr = {
     {FIQ, 0},
     {IRQ, 0},
