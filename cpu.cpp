@@ -740,13 +740,12 @@ void multiply_op(
   bool set_flags,
   bool accumulate
 ) {
-  cpu.set_register_value(accum_reg, cpu.get_register_value(reg_operand_1) * cpu.get_register_value(reg_operand_2));
+  uint32_t result = cpu.get_register_value(reg_operand_1) * cpu.get_register_value(reg_operand_2);
   if (accumulate) {
-    cpu.set_register_value(
-      destination_register,
-      cpu.get_register_value(destination_register) + cpu.get_register_value(accum_reg)
-    );
+    result += cpu.get_register_value(accum_reg);
   }
+  cpu.set_register_value(destination_register, result);
+
   if (set_flags) {
     update_negative_and_zero_cspr_flags(cpu, cpu.get_register_value(destination_register));
   }
@@ -827,6 +826,9 @@ void decode_multiply(CPU& cpu, uint32_t opcode) {
     set_conditions,
     accumulate
   );
+
+  // Increment the PC to the next instruction
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 void decode_multiply_long(CPU& cpu, uint32_t opcode) {
@@ -875,6 +877,9 @@ void decode_multiply_long(CPU& cpu, uint32_t opcode) {
       accumulate
     );
   }
+
+  // Increment the PC to the next instruction
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 // =================================================================================================
@@ -1415,7 +1420,7 @@ void execute_arm_instruction(CPU& cpu, uint32_t instruction) {
   }
 
   // Check if the instruction is a halfword data transfer immediate
-  if ((opcode & ARM_HALFWORD_DATA_TRANSFER_IMMEDIATE_OPCODE) == ARM_HALFWORD_DATA_TRANSFER_IMMEDIATE_OPCODE) {
+  if ((opcode & ARM_HALFWORD_DATA_TRANSFER_IMMEDIATE_OPCODE) == ARM_HALFWORD_DATA_TRANSFER_IMMEDIATE_OPCODE && (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) > 0) {
     decode_half_word_load_and_store(cpu, opcode);
     return;
   }
@@ -1437,7 +1442,7 @@ void execute_arm_instruction(CPU& cpu, uint32_t instruction) {
     return;
   }
 
-  if ((opcode & ARM_MULTIPLY_LONG_OPCODE) == ARM_MULTIPLY_LONG_OPCODE) {
+  if ((opcode & ARM_MULTIPLY_LONG_OPCODE) == ARM_MULTIPLY_LONG_OPCODE && (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) == 0) {
     decode_multiply_long(cpu, opcode);
     return;
   }
