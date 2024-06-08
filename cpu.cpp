@@ -1228,6 +1228,9 @@ void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t
   if (write_back) {
     cpu.set_register_value(base_register, base_address);
   }
+
+  // Increment the PC to the next instruction
+  if (!pc_in_list) cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 void block_store(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t control_flags) {
@@ -1267,6 +1270,9 @@ void block_store(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_
       cpu.set_register_value(base_register, base_address);
     }
   }
+
+  // Increment the PC to the next instruction
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 void decode_block_data_transfer(CPU& cpu, uint32_t opcode) {
