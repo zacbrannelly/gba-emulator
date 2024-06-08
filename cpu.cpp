@@ -930,9 +930,16 @@ void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t
   }
 
   // Write back always occurs if the indexing occurs after the transfer.
-  if ((control_flags & WRITE_BACK) || !is_pre_transfer) {
+  bool is_writing_back = (control_flags & WRITE_BACK) || !is_pre_transfer;
+  if (is_writing_back) {
     cpu.set_register_value(base_register, base_address);
+
+    // Don't increment the PC if the base register is the PC and the write back is enabled.
+    if (base_register == PC) return;
   }
+
+  // Increment the PC to the next instruction
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint16_t offset, uint8_t control_flags) {
@@ -966,7 +973,6 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
     } else {
       cpu.set_register_value(destination_register, word_aligned_value);
     }
-
   }
 
   if (!is_pre_transfer) {
@@ -974,9 +980,16 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
   }
 
   // Write back always occurs if the indexing occurs after the transfer.
-  if ((control_flags & WRITE_BACK) || !is_pre_transfer) {
+  bool is_writing_back = (control_flags & WRITE_BACK) || !is_pre_transfer;
+  if (is_writing_back) {
     cpu.set_register_value(base_register, base_address);
+
+    // Don't increment the PC if the base register is the PC and the write back is enabled.
+    if (base_register == PC) return;
   }
+
+  // Increment the PC to the next instruction
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 enum OffsetMode {
