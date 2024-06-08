@@ -81,11 +81,20 @@ TEST_CASE("Single Data Transfer", "[arm, single-data-transfer]") {
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(0) == 0x12);
+
+    // ldr r0, [r1, -r2]
+    *(uint32_t*)&cpu.memory[0x60] = 0x12121212;
+    cpu.set_register_value(0, 0x0);
+    cpu.set_register_value(1, 0x64);
+    cpu.set_register_value(2, 0x4);
+    cpu_cycle(cpu);
+
+    REQUIRE(cpu.get_register_value(0) == 0x12121212);
   }
 
   SECTION("STR") {
     REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_single_data_transfer.bin"));
-    cpu.registers[PC] = 0x20;
+    cpu.registers[PC] = 0x24;
 
     // str r0, [r1]
     *(uint32_t*)&cpu.memory[0x64] = 0x0;
@@ -158,5 +167,14 @@ TEST_CASE("Single Data Transfer", "[arm, single-data-transfer]") {
     cpu_cycle(cpu);
 
     REQUIRE(cpu.memory[0x64] == 0x12);
+
+    // str r0, [r1, -r2]
+    *(uint32_t*)&cpu.memory[0x60] = 0x0;
+    cpu.set_register_value(0, 0x12121212);
+    cpu.set_register_value(1, 0x64);
+    cpu.set_register_value(2, 0x4);
+    cpu_cycle(cpu);
+
+    REQUIRE(*(uint32_t*)&cpu.memory[0x60] == 0x12121212);
   }
 }

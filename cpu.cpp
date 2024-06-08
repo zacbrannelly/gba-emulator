@@ -1064,7 +1064,13 @@ void load_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t destinat
   bool is_write_back = control_flags & (1 << 2);
   if (is_write_back || !is_pre_transfer) {
     cpu.set_register_value(base_register, base_address);
+
+    // Don't increment the PC if the base register is the PC and the write back is enabled.
+    if (base_register == PC) return;
   }
+
+  // Increment the PC to the next instruction
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 template<OffsetMode Mode = Register>
@@ -1121,7 +1127,13 @@ void store_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t source_
   bool is_write_back = control_flags & (1 << 2);
   if (is_write_back || !is_pre_transfer) {
     cpu.set_register_value(base_register, base_address);
+
+    // Don't increment the PC if the base register is the PC and the write back is enabled.
+    if (base_register == PC) return;
   }
+
+  // Increment the PC to the next instruction
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 void decode_load_and_store(CPU& cpu, uint32_t opcode) {
@@ -1145,13 +1157,13 @@ void decode_half_word_load_and_store(CPU& cpu, uint32_t opcode) {
   bool is_immediate = opcode & (1 << 22);
 
   // Control flags = (P) Pre/Post | (U) Up/Down | (W) WriteBack | (S) Signed | (H) Halfword (5 bits)
-  uint8_t control_flags = (opcode >> 23) & 3; // PU
-  control_flags |= (opcode >> 21) & 1; // W
+  uint8_t control_flags = ((opcode >> 23) & 3) << 3; // PU
+  control_flags |= ((opcode >> 21) & 1) << 2; // W
   control_flags |= (opcode >> 5) & 3; // SH
 
   // TODO: Refactor this, no need for the templated functions anymore.
   if (is_immediate) {
-    uint8_t immediate_value = opcode & 0xFF | ((opcode >> 4) & 0xF0);
+    uint8_t immediate_value = opcode & 0xF | ((opcode >> 4) & 0xF0);
     if (is_load) {
       load_halfword_signed_byte<Immediate>(cpu, base_register, destination_register, immediate_value, control_flags);
     } else {
