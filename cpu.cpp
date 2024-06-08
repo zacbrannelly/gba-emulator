@@ -1381,8 +1381,8 @@ void execute_thumb_instruction(CPU& cpu, uint32_t instruction) {
 
 bool evaluate_arm_condition(CPU& cpu, uint8_t condition) {
   switch (condition) {
-    case EQ: return (cpu.cspr & CSPR_N) != 0; // Z == 1
-    case NE: return (cpu.cspr & CSPR_N) == 0; // Z == 0
+    case EQ: return (cpu.cspr & CSPR_Z) != 0; // Z == 1
+    case NE: return (cpu.cspr & CSPR_Z) == 0; // Z == 0
     case CS: return (cpu.cspr & CSPR_C) != 0; // C == 1
     case CC: return (cpu.cspr & CSPR_C) == 0; // C == 0
     case MI: return (cpu.cspr & CSPR_N) != 0; // N == 1
