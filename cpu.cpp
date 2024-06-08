@@ -893,7 +893,7 @@ static constexpr uint8_t UP = 1 << 2;
 static constexpr uint8_t BYTE_QUANTITY = 1 << 1;
 static constexpr uint8_t WRITE_BACK = 1;
 
-void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t offset, uint8_t control_flags) {
+void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t offset, uint8_t control_flags, bool increment_pc = true) {
   uint32_t base_address = cpu.get_register_value(base_register);
   if (base_register == PC) {
     // If PC is the base register, it should be 8 bytes ahead.
@@ -939,10 +939,10 @@ void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t
   }
 
   // Increment the PC to the next instruction
-  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  if (increment_pc) cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
-void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint16_t offset, uint8_t control_flags) {
+void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint16_t offset, uint8_t control_flags, bool increment_pc = true) {
   uint32_t base_address = cpu.get_register_value(base_register);
   uint32_t full_offset = 0;
   bool is_pre_transfer = control_flags & PRE_TRANSFER;
@@ -989,7 +989,7 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
   }
 
   // Increment the PC to the next instruction
-  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  if (increment_pc) cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 enum OffsetMode {
@@ -1310,11 +1310,11 @@ void single_data_swap(CPU& cpu, uint8_t base_register, uint8_t destination_regis
 
   // Use the existing LDR and STR operations to handle the swap.
   if constexpr (Mode == SwapByte) {
-    load_op(cpu, base_register, destination_register, 0, BYTE_QUANTITY);
-    store_op(cpu, base_register, source_register, 0, BYTE_QUANTITY);
+    load_op(cpu, base_register, destination_register, 0, BYTE_QUANTITY, false /* skip PC increment */);
+    store_op(cpu, base_register, source_register, 0, BYTE_QUANTITY, false /* skip PC increment */);
   } else {
-    load_op(cpu, base_register, destination_register, 0, 0);
-    store_op(cpu, base_register, source_register, 0, 0);
+    load_op(cpu, base_register, destination_register, 0, 0, false /* skip PC increment */);
+    store_op(cpu, base_register, source_register, 0, 0, false /* skip PC increment */);
   }
 }
 
