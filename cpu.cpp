@@ -1419,12 +1419,12 @@ void decode_thumb_add_sub(CPU& cpu, uint16_t instruction) {
       arm_instruction = ARM_ADD_REGISTER_OPCODE | input_component;
       break;
     case 0b01:
-      // adds rd, rs, #offset
-      arm_instruction = ARM_ADD_REGISTER_IMMEDIATE_OFFSET_OPCODE | input_component;
-      break;
-    case 0b10:
       // subs rd, rs, rn
       arm_instruction = ARM_SUB_REGISTER_OPCODE | input_component;
+      break;
+    case 0b10:
+      // adds rd, rs, #offset
+      arm_instruction = ARM_ADD_REGISTER_IMMEDIATE_OFFSET_OPCODE | input_component;
       break;
     case 0b11:
       // subs rd, rs, #offset
