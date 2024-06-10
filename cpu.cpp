@@ -3,6 +3,11 @@
 #include <cstring>
 
 // =================================================================================================
+// Forward Declarations
+// =================================================================================================
+bool evaluate_arm_condition(CPU& cpu, uint8_t condition);
+
+// =================================================================================================
 // ARM - Branch and Exchange
 // =================================================================================================
 
@@ -52,10 +57,12 @@ void branch(uint32_t offset, CPU& cpu) {
 
   // Account for the PC being 8 bytes ahead
   // The value we get from the instruction assumes the PC is 8 bytes ahead
-  uint32_t pc_with_prefetch = cpu.get_register_value(PC) + 8;
+  uint32_t pc_with_prefetch = cpu.get_register_value(PC) + 2 * cpu.get_instruction_size();
 
   // Set the new PC
   cpu_arm_write_pc(cpu, pc_with_prefetch + signed_offset);
+
+  // TODO: Do we need to subtract the prefetch offset?
 }
 
 void branch_with_link(uint32_t offset, CPU& cpu) {
@@ -548,14 +555,15 @@ void automatically_restore_cspr_if_applicable(CPU& cpu, uint8_t opcode, uint8_t 
 template<void Op(CPU&, uint32_t, uint32_t, uint8_t), bool SetFlags = false>
 void register_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, uint16_t operand_2, uint8_t destination_register) {
   bool shift_is_register = shift_amount_is_in_register(operand_2);
+  uint8_t const instruction_size = cpu.get_instruction_size();
   if (shift_is_register) {
     // PC should be 12 bytes ahead if the shift amount is in a register
     // Why? Prefetching.
-    cpu.set_register_value(PC, cpu.get_register_value(PC) + 3 * ARM_INSTRUCTION_SIZE);
+    cpu.set_register_value(PC, cpu.get_register_value(PC) + 3 * instruction_size);
   } else {
     // PC should be 8 bytes ahead if the shift amount is an immediate value
     // Why? Prefetching.
-    cpu.set_register_value(PC, cpu.get_register_value(PC) + 2 * ARM_INSTRUCTION_SIZE);
+    cpu.set_register_value(PC, cpu.get_register_value(PC) + 2 * instruction_size);
   }
 
   uint32_t operand_1 = cpu.get_register_value(operand_1_register);
@@ -568,14 +576,15 @@ void register_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, ui
 
   if (destination_register != PC) {
     // Revert the prefetching offset and set the PC to the next instruction.
-    cpu.set_register_value(PC, cpu.get_register_value(PC) - (shift_is_register ? 2 * ARM_INSTRUCTION_SIZE : ARM_INSTRUCTION_SIZE));
+    cpu.set_register_value(PC, cpu.get_register_value(PC) - (shift_is_register ? 2 * instruction_size : instruction_size));
   }
 }
 
 template<void Op(CPU&, uint32_t, uint32_t, uint8_t), bool SetFlags = false>
 void immediate_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, uint16_t operand_2, uint8_t destination_register) {
   // Account for prefetching.
-  cpu.set_register_value(PC, cpu.get_register_value(PC) + 2 * ARM_INSTRUCTION_SIZE);
+  uint8_t const instruction_size = cpu.get_instruction_size();
+  cpu.set_register_value(PC, cpu.get_register_value(PC) + 2 * instruction_size);
   
   uint32_t operand_1 = cpu.get_register_value(operand_1_register);
   uint32_t operand_2_immediate = apply_rotate_operation<SetFlags, true /* disable special cases (e.g. RRX on ROR #0) */>(cpu, operand_2);
@@ -587,7 +596,7 @@ void immediate_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, u
 
   if (destination_register != PC) {
     // Revert the prefetching offset and set the PC to the next instruction.
-    cpu.set_register_value(PC, cpu.get_register_value(PC) - ARM_INSTRUCTION_SIZE);
+    cpu.set_register_value(PC, cpu.get_register_value(PC) - instruction_size);
   }
 }
 
@@ -897,13 +906,13 @@ void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t
   uint32_t base_address = cpu.get_register_value(base_register);
   if (base_register == PC) {
     // If PC is the base register, it should be 8 bytes ahead.
-    base_address += 8;
+    base_address += 2 * cpu.get_instruction_size();
   }
 
   uint32_t value = cpu.get_register_value(source_register);
   if (source_register == PC) {
     // If PC is the source register, it should be 12 bytes ahead.
-    value += 12;
+    value += 3 * cpu.get_instruction_size();
   }
 
   uint32_t full_offset = 0;
@@ -932,10 +941,10 @@ void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t
   // Write back always occurs if the indexing occurs after the transfer.
   bool is_writing_back = (control_flags & WRITE_BACK) || !is_pre_transfer;
   if (is_writing_back) {
+    if (base_register == PC) {
+      throw std::runtime_error("Cannot write back to PC");
+    }
     cpu.set_register_value(base_register, base_address);
-
-    // Don't increment the PC if the base register is the PC and the write back is enabled.
-    if (base_register == PC) return;
   }
 
   // Increment the PC to the next instruction
@@ -947,6 +956,11 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
   uint32_t full_offset = 0;
   bool is_pre_transfer = control_flags & PRE_TRANSFER;
 
+  if (base_register == PC) {
+    // If PC is the base register, it should be 8 bytes ahead.
+    base_address += 2 * cpu.get_instruction_size();
+  }
+
   if (control_flags & REGISTER_OFFSET) {
     full_offset = apply_shift_operation(cpu, offset);
   } else {
@@ -957,10 +971,6 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
     base_address += (control_flags & UP) ? full_offset : -full_offset;
   }
 
-  // TODO: Figure out endianness
-  // TODO: This needs rotation built in, unaligned addresses should be handled differently.
-  // TODO: Basically you can't access memory outside a word boundary, so it rotates the word.
-  // TODO: So fucking weird.
   if (control_flags & BYTE_QUANTITY) {
     cpu.set_register_value(destination_register, cpu.memory[base_address] & 0xFF);
   } else {
@@ -982,14 +992,14 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
   // Write back always occurs if the indexing occurs after the transfer.
   bool is_writing_back = (control_flags & WRITE_BACK) || !is_pre_transfer;
   if (is_writing_back) {
+    if (base_register == PC) {
+      throw std::runtime_error("Cannot write back to PC");
+    }
     cpu.set_register_value(base_register, base_address);
-
-    // Don't increment the PC if the base register is the PC and the write back is enabled.
-    if (base_register == PC) return;
   }
 
   // Increment the PC to the next instruction
-  if (increment_pc) cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  if (increment_pc) cpu.increment_pc();
 }
 
 enum OffsetMode {
@@ -1008,7 +1018,7 @@ void load_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t destinat
 
   if (base_register == PC) {
     // If PC is the base register, it should be 8 bytes ahead.
-    base_address += 8;
+    base_address += 2 * cpu.get_instruction_size();
   }
 
   bool is_pre_transfer = control_flags & (1 << 4);
@@ -1070,7 +1080,7 @@ void load_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t destinat
   }
 
   // Increment the PC to the next instruction
-  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  cpu.increment_pc();
 }
 
 template<OffsetMode Mode = Register>
@@ -1084,7 +1094,7 @@ void store_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t source_
 
   if (base_register == PC) {
     // If PC is the base register, it should be 8 bytes ahead.
-    base_address += 8;
+    base_address += 2 * cpu.get_instruction_size();
   }
 
   bool is_pre_transfer = control_flags & (1 << 4);
@@ -1133,7 +1143,7 @@ void store_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t source_
   }
 
   // Increment the PC to the next instruction
-  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  cpu.increment_pc();
 }
 
 void decode_load_and_store(CPU& cpu, uint32_t opcode) {
@@ -1230,7 +1240,7 @@ void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t
   }
 
   // Increment the PC to the next instruction
-  if (!pc_in_list) cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  if (!pc_in_list) cpu.increment_pc();
 }
 
 void block_store(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t control_flags) {
@@ -1272,7 +1282,7 @@ void block_store(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_
   }
 
   // Increment the PC to the next instruction
-  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  cpu.increment_pc();
 }
 
 void decode_block_data_transfer(CPU& cpu, uint32_t opcode) {
@@ -1340,7 +1350,7 @@ void software_interrupt(CPU& cpu) {
   uint32_t current_pc = cpu.get_register_value(PC);
   uint32_t current_cspr = cpu.cspr;
 
-  // Switch to Supervisor mode
+  // Switch to Supervisor mode & back to ARM state.
   cpu.cspr = Supervisor;
 
   // Save the current PC to LR, and CSPR to SPSR_svc
@@ -1359,6 +1369,621 @@ void undefined_instruction(CPU& cpu) {
   throw std::runtime_error("Undefined instruction, and we have no coprocessors to handle it.");
 }
 
+// =================================================================================================
+// THUMB - Move Shifted Register
+// =================================================================================================
+
+static constexpr uint32_t ARM_MOVS_REGISTER_OFFSET_IMMEDIATE_SHIFT_OPCODE = MOV << 21 | SET_CONDITIONS;
+
+void decode_thumb_move_shifted_register(CPU& cpu, uint16_t instruction) {
+  uint8_t destination_register = instruction & 0x7; // Last 3 bits
+  uint8_t source_register = (instruction >> 3) & 0x7; // Next 3 bits
+  uint8_t offset_immediate = (instruction >> 6) & 0x1F; // Next 5 bits
+  uint8_t operation = (instruction >> 11) & 0x3; // Next 2 bits
+
+  // TODO: Optimize this to avoid more shifting in the `decode_data_processing` function.
+  // Convert the THUMB instruction to an ARM equivalent
+  // movs destination_register, source_register, #offset_immediate
+  uint32_t arm_equiv_instruction = ARM_MOVS_REGISTER_OFFSET_IMMEDIATE_SHIFT_OPCODE |
+    (destination_register << 12) |
+    (offset_immediate << 7) |
+    (operation << 5) |
+    source_register;
+  decode_data_processing(cpu, arm_equiv_instruction);
+}
+
+// =================================================================================================
+// THUMB - Add / Subtract
+// =================================================================================================
+
+static constexpr uint32_t ARM_ADD_REGISTER_OPCODE = ADD << 21 | SET_CONDITIONS;
+static constexpr uint32_t ARM_ADD_REGISTER_IMMEDIATE_OFFSET_OPCODE = ARM_ADD_REGISTER_OPCODE | IMMEDIATE;
+static constexpr uint32_t ARM_SUB_REGISTER_OPCODE = SUB << 21 | SET_CONDITIONS;
+static constexpr uint32_t ARM_SUB_REGISTER_IMMEDIATE_OFFSET_OPCODE = ARM_SUB_REGISTER_OPCODE | IMMEDIATE;
+
+void decode_thumb_add_sub(CPU& cpu, uint16_t instruction) {
+  uint8_t destination_register = instruction & 0x7; // Last 3 bits
+  uint8_t source_register = (instruction >> 3) & 0x7; // Next 3 bits
+  uint8_t offset = (instruction >> 6) & 0x7; // Next 3 bits
+  uint32_t input_component = (source_register << 16) | (destination_register << 12) | offset;
+
+  // Op (0 = Add, 1 = Sub) & Immediate (0 = Register, 1 = Immediate)
+  uint8_t operation = (instruction >> 9) & 0x3;
+
+  // TODO: Optimize this to avoid more shifting in the `decode_data_processing` function.
+  // Convert the THUMB instruction to an ARM equivalent
+  uint32_t arm_instruction = 0;
+  switch (operation) {
+    case 0b00:
+      // adds rd, rs, rn
+      arm_instruction = ARM_ADD_REGISTER_OPCODE | input_component;
+      break;
+    case 0b01:
+      // adds rd, rs, #offset
+      arm_instruction = ARM_ADD_REGISTER_IMMEDIATE_OFFSET_OPCODE | input_component;
+      break;
+    case 0b10:
+      // subs rd, rs, rn
+      arm_instruction = ARM_SUB_REGISTER_OPCODE | input_component;
+      break;
+    case 0b11:
+      // subs rd, rs, #offset
+      arm_instruction = ARM_SUB_REGISTER_IMMEDIATE_OFFSET_OPCODE | input_component;
+      break;
+  }
+  decode_data_processing(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - MOV/CMP/ADD/SUB (Immediate)
+// =================================================================================================
+
+static constexpr uint32_t ARM_MOV_IMMEDIATE_OPCODE = MOV << 21 | SET_CONDITIONS | IMMEDIATE;
+static constexpr uint32_t ARM_CMP_IMMEDIATE_OPCODE = CMP << 21 | SET_CONDITIONS | IMMEDIATE;
+static constexpr uint32_t ARM_ADD_IMMEDIATE_OPCODE = ADD << 21 | SET_CONDITIONS | IMMEDIATE;
+static constexpr uint32_t ARM_SUB_IMMEDIATE_OPCODE = SUB << 21 | SET_CONDITIONS | IMMEDIATE;
+
+void decode_thumb_mov_cmp_add_sub_immediate(CPU& cpu, uint16_t instruction) {
+  uint8_t offset = instruction & 0xFF; // Last 8 bits
+  uint8_t destination_register = (instruction >> 8) & 0x7; // Next 3 bits
+  uint8_t operation = (instruction >> 11) & 0x3; // Next 2 bits
+  uint32_t input_component = (destination_register << 12) | offset;
+
+  uint32_t arm_instruction = 0;
+  switch (operation) {
+    case 0:
+      // movs destination_register, #offset
+      arm_instruction = ARM_MOV_IMMEDIATE_OPCODE | input_component;
+      break;
+    case 1:
+      // cmp destination_register, #offset
+      arm_instruction = ARM_CMP_IMMEDIATE_OPCODE | input_component;
+      break;
+    case 2:
+      // adds destination_register, destination_register, #offset
+      arm_instruction = ARM_ADD_IMMEDIATE_OPCODE | (destination_register << 16) | input_component;
+      break;
+    case 3:
+      // subs destination_register, destination_register, #offset
+      arm_instruction = ARM_SUB_IMMEDIATE_OPCODE | (destination_register << 16) | input_component;
+      break;
+  }
+
+  decode_data_processing(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - ALU Operations
+// =================================================================================================
+
+static constexpr uint32_t ARM_AND_REGISTER_OPCODE = (AND << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_EOR_REGISTER_OPCODE = (EOR << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_MOV_REGISTER_OPCODE = (MOV << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_ADC_REGISTER_OPCODE = (ADC << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_SBC_REGISTER_OPCODE = (SBC << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_TST_REGISTER_OPCODE = (TST << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_RSB_IMMEDIATE_OPCODE = (RSB << 21) | SET_CONDITIONS | IMMEDIATE;
+static constexpr uint32_t ARM_CMP_REGISTER_OPCODE = (CMP << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_CMN_REGISTER_OPCODE = (CMN << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_ORR_REGISTER_OPCODE = (ORR << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_MUL_REGISTER_OPCODE = (1 << 7) | (1 << 4) | SET_CONDITIONS;
+static constexpr uint32_t ARM_BIC_REGISTER_OPCODE = (BIC << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_MVN_REGISTER_OPCODE = (MVN << 21) | SET_CONDITIONS;
+static constexpr uint32_t ARM_SHIFT_BY_REGISTER_FLAG = 1 << 4;
+static constexpr uint32_t ARM_LSR_COMPONENT = 1 << 5;
+static constexpr uint32_t ARM_ASR_COMPONENT = 2 << 5;
+static constexpr uint32_t ARM_ROR_COMPONENT = 3 << 5;
+
+void decode_thumb_alu_operations(CPU& cpu, uint32_t instruction) {
+  uint8_t destination_register = instruction & 0x7; // Last 3 bits
+  uint8_t source_register = (instruction >> 3) & 0x7; // Next 3 bits
+  uint8_t operation = (instruction >> 6) & 0xF; // Next 4 bits
+  uint32_t rd_rd_component = (destination_register << 16) | (destination_register << 12);
+
+  uint32_t arm_instruction = 0;
+  switch (operation) {
+    case 0:
+      // ands rd, rd, rs
+      arm_instruction = ARM_AND_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+    case 1:
+      // eors rd, rd, rs
+      arm_instruction = ARM_EOR_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+    case 2:
+      // movs rd, rd, lsl rs
+      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | (source_register << 8);
+      break;
+    case 3:
+      // movs rd, rd, lsr rs
+      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | ARM_LSR_COMPONENT | (source_register << 8);
+      break;
+    case 4:
+      // movs rd, rd, asr rs
+      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | ARM_ASR_COMPONENT | (source_register << 8);
+      break;
+    case 5:
+      // adcs rd, rd, rs
+      arm_instruction = ARM_ADC_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+    case 6:
+      // sbcs rd, rd, rs
+      arm_instruction = ARM_SBC_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+    case 7:
+      // movs rd, rd, ror rs
+      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | ARM_ROR_COMPONENT | (source_register << 8);
+      break;
+    case 8:
+      // tst rd, rs
+      arm_instruction = ARM_TST_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+    case 9:
+      // rsbs rd, rs, #0
+      arm_instruction = ARM_RSB_IMMEDIATE_OPCODE | (source_register << 16) | (destination_register << 12);
+      break;
+    case 10:
+      // cmp rd, rs
+      arm_instruction = ARM_CMP_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+    case 11:
+      // cmn rd, rs
+      arm_instruction = ARM_CMN_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+    case 12:
+      // orrs rd, rd, rs
+      arm_instruction = ARM_ORR_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+    case 13:
+      // muls rd, rs, rd
+      arm_instruction = ARM_MUL_REGISTER_OPCODE | (destination_register << 16) | (source_register << 8) | destination_register;
+      break;
+    case 14:
+      // bics rd, rd, rs
+      arm_instruction = ARM_BIC_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+    case 15:
+      // mvns rd, rs
+      arm_instruction = ARM_MVN_REGISTER_OPCODE | rd_rd_component | source_register;
+      break;
+  }
+  decode_data_processing(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Hi Register Operations / Branch Exchange
+// =================================================================================================
+
+static constexpr uint32_t ARM_ADD_REGISTER_NO_SET_COND_OPCODE = ADD << 21;
+static constexpr uint32_t ARM_MOV_REGISTER_NO_SET_COND_OPCODE = MOV << 21;
+static constexpr uint32_t ARM_BX_OPCODE = 0b0000'0001'0010'1111'1111'1111'0001'0000;
+
+void decode_thumb_hi_register_operations_branch_exchange(CPU& cpu, uint16_t instruction) {
+  uint8_t destination_register = instruction & 0x7; // Last 3 bits
+  uint8_t source_register = (instruction >> 3) & 0x7; // Next 3 bits
+  uint8_t operation = (instruction >> 6) & 0xF; // Next 4 bits (Op, H1, H2)
+
+  uint32_t arm_instruction = 0;
+  switch (operation) {
+    case 1:
+      // add rd, rd, hs
+      arm_instruction = ARM_ADD_REGISTER_NO_SET_COND_OPCODE | (destination_register << 12) | (destination_register << 16) | (source_register + 8);
+      break;
+    case 2:
+      // add hd, hd, rs
+      arm_instruction = ARM_ADD_REGISTER_NO_SET_COND_OPCODE | ((destination_register + 8) << 12) | ((destination_register + 8) << 16) | source_register;
+      break;
+    case 3:
+      // add hd, hd, hs
+      arm_instruction = ARM_ADD_REGISTER_NO_SET_COND_OPCODE | ((destination_register + 8) << 12) | ((destination_register + 8) << 16) | (source_register + 8);
+      break;
+    case 5:
+      // cmp rd, hs
+      arm_instruction = ARM_CMP_REGISTER_OPCODE | (destination_register << 16) | (source_register + 8);
+      break;
+    case 6:
+      // cmp hd, rs
+      arm_instruction = ARM_CMP_REGISTER_OPCODE | ((destination_register + 8) << 16) | source_register;
+      break;
+    case 9:
+      // mov rd, hs
+      arm_instruction = ARM_MOV_REGISTER_NO_SET_COND_OPCODE | (destination_register << 12) | (source_register + 8);
+      break;
+    case 10:
+      // mov hd, rs
+      arm_instruction = ARM_MOV_REGISTER_NO_SET_COND_OPCODE | ((destination_register + 8) << 12) | source_register;
+      break;
+    case 11:
+      // mov hd, hs
+      arm_instruction = ARM_MOV_REGISTER_NO_SET_COND_OPCODE | ((destination_register + 8) << 12) | (source_register + 8);
+      break;
+    case 12:
+      // bx rs
+      arm_instruction = ARM_BX_OPCODE | source_register;
+      break;
+    case 13:
+      // bx hs
+      arm_instruction = ARM_BX_OPCODE | (source_register + 8);
+      break;
+  }
+
+  if (operation > 11) {
+    decode_branch_and_exchange(cpu, instruction);
+  } else {
+    decode_data_processing(cpu, arm_instruction);
+  }
+}
+
+// =================================================================================================
+// THUMB - PC-relative load
+// =================================================================================================
+
+// ldr rd, [pc, #immediate]
+static constexpr uint32_t ARM_LDR_PC_RELATIVE_OPCODE = (1 << 26) | (1 << 24) | (1 << 23) | (1 << 20) | (15 << 16);
+
+void decode_thumb_pc_relative_load(CPU& cpu, uint16_t instruction) {
+  uint32_t immediate_value = (instruction & 0xFF) << 2; // Last 8 bits, shifted by 2 to become a 10-bit value
+  uint8_t destination_register = (instruction >> 8) & 0x7; // Next 3 bits
+  uint32_t arm_instruction = ARM_LDR_PC_RELATIVE_OPCODE | (destination_register << 12) | immediate_value;
+  decode_load_and_store(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Load/Store w/ Register Offset
+// =================================================================================================
+
+static constexpr uint32_t ARM_STR_REGISTER_OFFSET_OPCODE = (1 << 26) | (1 << 25) | (1 << 24) | (1 << 23);
+static constexpr uint32_t ARM_LDR_REGISTER_OFFSET_OPCODE = ARM_STR_REGISTER_OFFSET_OPCODE | (1 << 20);
+static constexpr uint32_t ARM_BYTE_QUANTITY_FLAG = 1 << 22;
+
+void decode_thumb_load_store_register_offset(CPU& cpu, uint16_t instruction) {
+  uint8_t destination_register = instruction & 0x7; // Last 3 bits
+  uint8_t base_register = (instruction >> 3) & 0x7; // Next 3 bits
+  uint8_t offset_register = (instruction >> 6) & 0x7; // Next 3 bits
+  uint8_t operation = (instruction >> 10) & 0x3; // Skip 1 bit, and get the next 2 bits
+  uint32_t input_component = (destination_register << 12) | (base_register << 16) | offset_register;
+  uint32_t arm_instruction = 0;
+  switch (operation) {
+    case 0:
+      // str rd, [rb, ro]
+      arm_instruction = ARM_STR_REGISTER_OFFSET_OPCODE | input_component;
+      break;
+    case 1:
+      // strb rd, [rb, ro]
+      arm_instruction = ARM_STR_REGISTER_OFFSET_OPCODE | ARM_BYTE_QUANTITY_FLAG | input_component;
+      break;
+    case 2:
+      // ldr rd, [rb, ro]
+      arm_instruction = ARM_LDR_REGISTER_OFFSET_OPCODE | input_component;
+      break;
+    case 3:
+      // ldrb rd, [rb, ro]
+      arm_instruction = ARM_LDR_REGISTER_OFFSET_OPCODE | ARM_BYTE_QUANTITY_FLAG | input_component;
+      break;
+  }
+  decode_load_and_store(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Load/Store Sign-Extended Byte/Halfword
+// =================================================================================================
+
+static constexpr uint32_t ARM_BASE_HALFWORD_OR_SIGNED_STR_REGISTER_OFFSET_OPCODE = (1 << 24) | (1 << 23) | (1 << 7) | (1 << 4);
+static constexpr uint32_t ARM_BASE_HALFWORD_OR_SIGNED_LDR_REGISTER_OFFSET_OPCODE = ARM_BASE_HALFWORD_OR_SIGNED_STR_REGISTER_OFFSET_OPCODE | (1 << 20);
+static constexpr uint32_t ARM_HALFWORD_FLAG = 1 << 5;
+static constexpr uint32_t ARM_SIGNED_FLAG = 1 << 6;
+
+void decode_thumb_load_store_sign_extended_byte_halfword(CPU& cpu, uint16_t instruction) {
+  uint8_t destination_register = instruction & 0x7; // Last 3 bits
+  uint8_t base_register = (instruction >> 3) & 0x7; // Next 3 bits
+  uint8_t offset_register = (instruction >> 6) & 0x7; // Next 3 bits
+  uint8_t operation = (instruction >> 10) & 0x3; // Skip 1 bit, and get the next 2 bits
+  uint32_t input_component = (destination_register << 12) | (base_register << 16) | offset_register;
+
+  uint32_t arm_instruction = 0;
+  switch(operation) {
+    case 0:
+      // strh rd, [rb, ro]
+      arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_STR_REGISTER_OFFSET_OPCODE | ARM_HALFWORD_FLAG | input_component;
+      break;
+    case 1:
+      // ldrh rd, [rb, ro]
+      arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_LDR_REGISTER_OFFSET_OPCODE | ARM_HALFWORD_FLAG | input_component;
+      break;
+    case 2:
+      // ldsb rd, [rb, ro]
+      arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_LDR_REGISTER_OFFSET_OPCODE | ARM_SIGNED_FLAG | input_component;
+      break;
+    case 3: 
+      // ldsh rd, [rb, ro]
+      arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_LDR_REGISTER_OFFSET_OPCODE | ARM_HALFWORD_FLAG | ARM_SIGNED_FLAG | input_component;
+      break;
+  }
+  decode_half_word_load_and_store(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Load/Store w/ Immediate Offset
+// =================================================================================================
+
+static constexpr uint32_t ARM_STR_IMMEDIATE_OFFSET_OPCODE = (1 << 26) | (1 << 24) | (1 << 23);
+static constexpr uint32_t ARM_LDR_IMMEDIATE_OFFSET_OPCODE = ARM_STR_IMMEDIATE_OFFSET_OPCODE | (1 << 20);
+
+void decode_thumb_load_store_immediate_offset(CPU& cpu, uint16_t instruction) {
+  uint8_t destination_register = instruction & 0x7; // Last 3 bits
+  uint8_t base_register = (instruction >> 3) & 0x7; // Next 3 bits
+  uint8_t offset = (instruction >> 6) & 0x1F; // Next 5 bits
+  uint8_t operation = (instruction >> 11) & 0x3; // Next 2 bits
+  uint32_t input_component = (destination_register << 12) | (base_register << 16);
+
+  uint32_t arm_instruction = 0;
+  switch (operation) {
+    case 0:
+      // str rd, [rb, #offset]
+      offset <<= 2; // Shift the offset by 2 to make it a 7-bit value.
+      arm_instruction = ARM_STR_IMMEDIATE_OFFSET_OPCODE | input_component | offset;
+      break;
+    case 1:
+      // strb rd, [rb, #offset]
+      arm_instruction = ARM_STR_IMMEDIATE_OFFSET_OPCODE | ARM_BYTE_QUANTITY_FLAG | input_component | offset;
+      break;
+    case 2:
+      // ldr rd, [rb, #offset]
+      offset <<= 2; // Shift the offset by 2 to make it a 7-bit value.
+      arm_instruction = ARM_LDR_IMMEDIATE_OFFSET_OPCODE | input_component | offset;
+      break;
+    case 3:
+      // ldrb rd, [rb, #offset]
+      arm_instruction = ARM_LDR_IMMEDIATE_OFFSET_OPCODE | ARM_BYTE_QUANTITY_FLAG | input_component | offset;
+      break;
+  }
+  decode_load_and_store(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Load/Store Halfword
+// =================================================================================================
+
+static constexpr uint32_t ARM_BASE_HALFWORD_OR_SIGNED_STR_IMMEDIATE_OFFSET_OPCODE = (1 << 24) | (1 << 23) | (1 << 22) | (1 << 7) | (1 << 4);
+static constexpr uint32_t ARM_BASE_HALFWORD_OR_SIGNED_LDR_IMMEDIATE_OFFSET_OPCODE = ARM_BASE_HALFWORD_OR_SIGNED_STR_REGISTER_OFFSET_OPCODE | (1 << 20);
+
+void decode_thumb_load_store_halfword(CPU& cpu, uint16_t instruction) {
+  uint8_t destination_register = instruction & 0x7; // Last 3 bits
+  uint8_t base_register = (instruction >> 3) & 0x7; // Next 3 bits
+  uint8_t offset = ((instruction >> 6) & 0x1F) << 1; // Next 5 bits, shifted by 1 to make it a 6-bit value
+  bool is_load = instruction & (1 << 11);
+  uint32_t input_component = (destination_register << 12) | (base_register << 16) | offset;
+
+  uint32_t arm_instruction = 0;
+  if (is_load) {
+    // ldrh rd, [rb, #offset]
+    arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_LDR_IMMEDIATE_OFFSET_OPCODE | ARM_HALFWORD_FLAG | input_component;
+  } else {
+    // strh rd, [rb, #offset]
+    arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_STR_IMMEDIATE_OFFSET_OPCODE | ARM_HALFWORD_FLAG | input_component;
+  }
+  decode_half_word_load_and_store(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - SP-relative Load/Store
+// =================================================================================================
+
+static constexpr uint32_t ARM_STR_SP_RELATIVE_OPCODE = ARM_STR_IMMEDIATE_OFFSET_OPCODE | (SP << 16);
+static constexpr uint32_t ARM_LDR_SP_RELATIVE_OPCODE = ARM_LDR_IMMEDIATE_OFFSET_OPCODE | (SP << 16);
+
+void decode_thumb_sp_relative_load_store(CPU& cpu, uint16_t instruction) {
+  uint16_t immediate_offset = (instruction & 0xFF) << 2; // Last 8 bits, shifted by 2 to make it a 10-bit value
+  uint8_t destination_register = (instruction >> 8) & 0x7; // Next 3 bits
+  bool is_load = instruction & (1 << 11);
+  uint32_t input_component = (destination_register << 12) | immediate_offset;
+
+  uint32_t arm_instruction = 0;
+  if (is_load) {
+    // ldr rd, [sp, #immediate_offset]
+    arm_instruction = ARM_LDR_IMMEDIATE_OFFSET_OPCODE | input_component;
+  } else {
+    // str rd, [sp, #immediate_offset]
+    arm_instruction = ARM_STR_IMMEDIATE_OFFSET_OPCODE | input_component;
+  }
+  decode_load_and_store(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Load Address
+// =================================================================================================
+
+static constexpr uint32_t ARM_ADD_IMMEDIATE_NO_SET_COND_OPCODE = ADD << 21 | IMMEDIATE;
+static constexpr uint32_t ARM_ADD_TO_PC_OPCODE = ARM_ADD_IMMEDIATE_NO_SET_COND_OPCODE | (PC << 16);
+static constexpr uint32_t ARM_ADD_TO_SP_OPCODE = ARM_ADD_IMMEDIATE_NO_SET_COND_OPCODE | (SP << 16);
+
+void decode_thumb_load_address(CPU& cpu, uint16_t instruction) {
+  uint8_t immediate_value = (instruction & 0xFF) << 2; // Last 8 bits, shifted by 2 to make it a 10-bit value
+  uint8_t destination_register = (instruction >> 8) & 0x7; // Next 3 bits
+  bool is_sp = instruction & (1 << 11);
+  uint32_t input_component = (destination_register << 12) | immediate_value;
+
+  uint32_t arm_instruction = 0;
+  if (is_sp) {
+    // add rd, sp, #immediate_value
+    arm_instruction = ARM_ADD_TO_SP_OPCODE | input_component;
+  } else {
+    // add rd, pc, #immediate_value
+    arm_instruction = ARM_ADD_TO_PC_OPCODE | input_component;
+  }
+  decode_data_processing(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Add offset to SP
+// =================================================================================================
+
+static constexpr uint32_t ARM_ADD_TO_SP_AND_STORE_IN_SP_OPCODE = ARM_ADD_TO_PC_OPCODE | (SP << 12);
+static constexpr uint32_t ARM_SUB_FROM_SP_AND_STORE_IN_SP_OPCODE = (SUB << 21) | IMMEDIATE | (SP << 16) | (SP << 12);
+
+void decode_thumb_add_offset_to_stack_pointer(CPU& cpu, uint16_t instruction) {
+  uint8_t magnitude_value = (instruction & 0x7F) << 2; // Last 7 bits, shifted by 2 to make it a 9-bit value
+  bool is_subtract = instruction & (1 << 7);
+
+  uint32_t arm_instruction = 0;
+  if (is_subtract) {
+    // sub sp, sp, #magnitude_value
+    arm_instruction = ARM_SUB_FROM_SP_AND_STORE_IN_SP_OPCODE | magnitude_value;
+  } else {
+    // add sp, sp, #magnitude_value
+    arm_instruction = ARM_ADD_TO_SP_AND_STORE_IN_SP_OPCODE | magnitude_value;
+  }
+  decode_data_processing(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Push/Pop Registers
+// =================================================================================================
+
+static constexpr uint32_t ARM_STM_TO_SP_OPCODE = (1 << 27) | (1 << 24) | (1 << 21) | (SP << 16);
+static constexpr uint32_t ARM_LDM_TO_SP_OPCODE = ARM_STM_TO_SP_OPCODE | (1 << 20);
+
+void decode_thumb_push_pop_registers(CPU& cpu, uint16_t instruction) {
+  uint16_t register_list = (instruction & 0xFF) << 8; // Last 8 bits
+  uint8_t operation = ((instruction >> 8) & 1) | ((instruction >> 11) & 1); // Next bit (PC/LR bit), skip 2 bits, and get the next bit (Load/Store bit).
+
+  uint32_t arm_instruction = 0;
+  switch (operation) {
+    case 0:
+      // stmdb sp!, {rlist}
+      arm_instruction = ARM_STM_TO_SP_OPCODE | register_list;
+      break;
+    case 1:
+      // stmdb sp!, {rlist, lr}
+      arm_instruction = ARM_STM_TO_SP_OPCODE | (1 << LR) | register_list;
+      break;
+    case 2:
+      // ldmia sp!, {rlist}
+      arm_instruction = ARM_LDM_TO_SP_OPCODE | register_list;
+      break;
+    case 3:
+      // ldmia sp!, {rlist, pc}
+      arm_instruction = ARM_LDM_TO_SP_OPCODE | (1 << PC) | register_list;
+      break;
+  }
+  decode_block_data_transfer(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Multiple Load/Store
+// =================================================================================================
+
+static constexpr uint32_t ARM_STM_OPCODE = (1 << 27) | (1 << 21);
+static constexpr uint32_t ARM_LDM_OPCODE = ARM_STM_OPCODE | (1 << 20);
+
+void decode_thumb_multiple_load_store(CPU& cpu, uint16_t instruction) {
+  uint16_t register_list = (instruction & 0xFF) << 8; // Last 8 bits, shifted by 8 to make it a 16-bit value
+  uint8_t base_register = (instruction >> 8) & 0x7; // Next 3 bits
+  bool is_load = instruction & (1 << 11); // Next bit
+  uint32_t input_component = (base_register << 16) | register_list;
+
+  uint32_t arm_instruction = 0;
+  if (is_load) {
+    // ldmia rb!, {rlist}
+    arm_instruction = ARM_LDM_OPCODE | input_component;
+  } else {
+    // stmia rb!, {rlist}
+    arm_instruction = ARM_STM_OPCODE | input_component;
+  }
+  decode_block_data_transfer(cpu, arm_instruction);
+}
+
+// =================================================================================================
+// THUMB - Conditional Branch
+// =================================================================================================
+
+void decode_thumb_conditional_branch(CPU& cpu, uint16_t instruction) {
+  uint16_t signed_offset = (instruction & 0xFF) << 1; // Last 8 bits, shifted by 1 to make it a 9-bit value
+  uint8_t condition = (instruction >> 8) & 0xF; // Next 4 bits
+
+  // Sign extend the offset to become a 24-bit value
+  uint32_t offset = signed_offset;
+  if (offset & 0x100) {
+    offset |= 0xFFFFFE00;
+  }
+
+  uint32_t arm_instruction = ARM_BRANCH_OPCODE | offset;
+  if (evaluate_arm_condition(cpu, condition)) {
+    decode_branch_and_link(cpu, arm_instruction);
+  }
+}
+
+// =================================================================================================
+// THUMB - Software Interrupt
+// =================================================================================================
+
+void decode_thumb_software_interrupt(CPU& cpu, uint16_t instruction) {
+  // swi #immediate
+  software_interrupt(cpu);
+}
+
+// =================================================================================================
+// THUMB - Unconditional Branch
+// =================================================================================================
+
+void decode_thumb_unconditional_branch(CPU& cpu, uint16_t instruction) {
+  uint16_t signed_offset = (instruction & 0x7FF) << 1; // Last 11 bits, shifted by 1 to make it a 12-bit value
+  uint32_t offset = signed_offset;
+  if (offset & 0x800) {
+    offset |= 0xFFFFF000;
+  }
+  branch(offset, cpu);
+}
+
+// =================================================================================================
+// THUMB - Long Branch with Link
+// =================================================================================================
+
+void decode_thumb_long_branch_with_link(CPU& cpu, uint16_t instruction) {
+  bool is_low_offset = instruction & (1 << 11);
+  uint16_t offset = (instruction & 0x7FF); // Last 11 bits
+  if (is_low_offset) {
+    // LR := PC + OffsetHigh << 12
+    uint32_t pc = cpu.get_register_value(PC) + 2 * cpu.get_instruction_size();
+    cpu.set_register_value(LR, pc + (offset << 12));
+
+    // Increment the PC.
+    cpu.increment_pc();
+  } else {
+    // Shift the offset by 1 to make it a 12-bit value
+    offset <<= 1;
+
+    // Calculate the next instruction address (with bit 0 set to 1 to indicate Thumb mode)
+    uint32_t next_instruction_addr = (cpu.get_register_value(PC) + cpu.get_instruction_size()) | 1;
+    
+    // PC := LR + Offset
+    cpu.set_register_value(PC, cpu.get_register_value(LR) + offset);
+    
+    // LR := Address of the next instruction
+    cpu.set_register_value(LR, next_instruction_addr);
+  }
+}
+
 void cpu_reset(CPU& cpu) {
   // TODO: Reset registers etc.
   // TODO: Set the mode back to ARM.
@@ -1375,8 +2000,100 @@ void cpu_init(CPU& cpu) {
   cpu_reset(cpu);
 }
 
-void execute_thumb_instruction(CPU& cpu, uint32_t instruction) {
-  
+#define IS(VAL, MASK) (VAL & MASK) == MASK
+
+void execute_thumb_instruction(CPU& cpu, uint32_t instruction) {  
+  if (IS(instruction, THUMB_LONG_BRANCH_WITH_LINK_OPCODE)) {
+    decode_thumb_long_branch_with_link(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_UNCONDITIONAL_BRANCH_OPCODE)) {
+    decode_thumb_unconditional_branch(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_SOFTWARE_INTERRUPT_OPCODE)) {
+    decode_thumb_software_interrupt(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_CONDITIONAL_BRANCH_OPCODE)) {
+    decode_thumb_conditional_branch(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_MULTIPLE_LOAD_STORE_OPCODE)) {
+    decode_thumb_multiple_load_store(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_PUSH_POP_REGISTERS_OPCODE)) {
+    decode_thumb_push_pop_registers(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_ADD_OFFSET_TO_STACK_POINTER_OPCODE)) {
+    decode_thumb_add_offset_to_stack_pointer(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_LOAD_ADDRESS_OPCODE)) {
+    decode_thumb_load_address(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_SP_RELATIVE_LOAD_STORE_OPCODE)) {
+    decode_thumb_sp_relative_load_store(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_LOAD_STORE_HALFWORD_OPCODE)) {
+    decode_thumb_load_store_halfword(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_LOAD_STORE_IMMEDIATE_OFFSET_OPCODE)) {
+    decode_thumb_load_store_immediate_offset(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_LOAD_STORE_SIGN_EXTENDED_BYTE_HALFWORD_OPCODE)) {
+    decode_thumb_load_store_sign_extended_byte_halfword(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_LOAD_STORE_REGISTER_OFFSET_OPCODE)) {
+    decode_thumb_load_store_register_offset(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_PC_RELATIVE_LOAD_OPCODE)) {
+    decode_thumb_pc_relative_load(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_HI_REGISTER_OPERATIONS_BRANCH_EXCHANGE_OPCODE)) {
+    decode_thumb_hi_register_operations_branch_exchange(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_ALU_OPERATIONS_OPCODE)) {
+    decode_thumb_alu_operations(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_MOV_CMP_ADD_SUB_IMMEDIATE_OPCODE)) {
+    decode_thumb_mov_cmp_add_sub_immediate(cpu, instruction);
+    return;
+  }
+
+  if (IS(instruction, THUMB_ADD_SUB_OPCODE)) {
+    decode_thumb_add_sub(cpu, instruction);
+    return;
+  }
+
+  decode_thumb_move_shifted_register(cpu, instruction);
 }
 
 bool evaluate_arm_condition(CPU& cpu, uint8_t condition) {

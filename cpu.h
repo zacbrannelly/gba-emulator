@@ -23,6 +23,26 @@ static constexpr uint32_t ARM_MULTIPLY_LONG_OPCODE = (1 << 23) | (1 << 7) | (1 <
 static constexpr uint32_t ARM_MULTIPLY_OPCODE = (1 << 7) | (1 << 4); // SH == 0 for multiply
 // Any other instruction is a Data Processing instruction.
 
+static constexpr uint16_t THUMB_LONG_BRANCH_WITH_LINK_OPCODE = 0xF000;
+static constexpr uint16_t THUMB_UNCONDITIONAL_BRANCH_OPCODE = 7 << 13;
+static constexpr uint16_t THUMB_SOFTWARE_INTERRUPT_OPCODE = 0xDF00;
+static constexpr uint16_t THUMB_CONDITIONAL_BRANCH_OPCODE = 0xD000;
+static constexpr uint16_t THUMB_MULTIPLE_LOAD_STORE_OPCODE = 3 << 14;
+static constexpr uint16_t THUMB_PUSH_POP_REGISTERS_OPCODE = 0x2D << 10;
+static constexpr uint16_t THUMB_ADD_OFFSET_TO_STACK_POINTER_OPCODE = 0xB000;
+static constexpr uint16_t THUMB_LOAD_ADDRESS_OPCODE = 0xA000;
+static constexpr uint16_t THUMB_SP_RELATIVE_LOAD_STORE_OPCODE = 9 << 12;
+static constexpr uint16_t THUMB_LOAD_STORE_HALFWORD_OPCODE = 1 << 15;
+static constexpr uint16_t THUMB_LOAD_STORE_IMMEDIATE_OFFSET_OPCODE = 3 << 13;
+static constexpr uint16_t THUMB_LOAD_STORE_SIGN_EXTENDED_BYTE_HALFWORD_OPCODE = 0x29 << 9;
+static constexpr uint16_t THUMB_LOAD_STORE_REGISTER_OFFSET_OPCODE = 0x5 << 12;
+static constexpr uint16_t THUMB_PC_RELATIVE_LOAD_OPCODE = 0x9 << 11;
+static constexpr uint16_t THUMB_HI_REGISTER_OPERATIONS_BRANCH_EXCHANGE_OPCODE = 0x11 << 10;
+static constexpr uint16_t THUMB_ALU_OPERATIONS_OPCODE = 1 << 14;
+static constexpr uint16_t THUMB_MOV_CMP_ADD_SUB_IMMEDIATE_OPCODE = 1 << 13;
+static constexpr uint16_t THUMB_ADD_SUB_OPCODE = 3 << 11;
+// Any other instruction is a MOVE_SHIFTED_REGISTER instruction.
+
 enum CPUOperatingMode {
   User = 0b10000,
   FIQ = 0b10001,
@@ -63,10 +83,17 @@ enum ConditionCodes {
 // Bit 30 - Z (Zero)
 // Bit 29 - C (Carry / Borrow / Extend)
 // Bit 28 - V (Overflow)
+// Bit 27-8 - Reserved
+// Bit 7 - IRQ Interrupt Disable
+// Bit 6 - FIQ Interrupt Disable
+// Bit 5 - State bit (Tbit, 0 = ARM, 1 = THUMB)
 static constexpr uint32_t CSPR_N = 1 << 31;
 static constexpr uint32_t CSPR_Z = 1 << 30;
 static constexpr uint32_t CSPR_C = 1 << 29;
 static constexpr uint32_t CSPR_V = 1 << 28;
+static constexpr uint32_t CSPR_IRQ_DISABLE = 1 << 7;
+static constexpr uint32_t CSPR_FIQ_DISABLE = 1 << 6;
+static constexpr uint32_t CSPR_THUMB_STATE = 1 << 5;
 
 enum SpecialRegisters {
   SP = 13, // Stack Pointer
@@ -203,6 +230,14 @@ struct CPU {
       default:
         registers[reg] = value;
     }
+  }
+
+  uint8_t get_instruction_size() {
+    return cspr & CSPR_THUMB_STATE ? THUMB_INSTRUCTION_SIZE : ARM_INSTRUCTION_SIZE;
+  }
+
+  void increment_pc() {
+    set_register_value(PC, get_register_value(PC) + get_instruction_size());
   }
 };
 
