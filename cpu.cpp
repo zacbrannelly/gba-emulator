@@ -837,7 +837,7 @@ void decode_multiply(CPU& cpu, uint32_t opcode) {
   );
 
   // Increment the PC to the next instruction
-  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  cpu.increment_pc();
 }
 
 void decode_multiply_long(CPU& cpu, uint32_t opcode) {
@@ -1567,7 +1567,11 @@ void decode_thumb_alu_operations(CPU& cpu, uint32_t instruction) {
       arm_instruction = ARM_MVN_REGISTER_OPCODE | rd_rd_component | source_register;
       break;
   }
-  decode_data_processing(cpu, arm_instruction);
+  if (operation == 13) {
+    decode_multiply(cpu, arm_instruction);
+  } else {
+    decode_data_processing(cpu, arm_instruction);
+  }
 }
 
 // =================================================================================================

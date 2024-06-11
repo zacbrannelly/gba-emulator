@@ -332,7 +332,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
     cpu_cycle(cpu);
 
     // 1 + 1 = 2
-    REQUIRE_FALSE(cpu.cspr & (1 << 30)); // Z (Zero) flag should not be set.
+    REQUIRE_FALSE(cpu.cspr & CSPR_Z); // Z (Zero) flag should not be set.
 
     // cmn r0, r1
     cpu.set_register_value(PC, 0x0);
