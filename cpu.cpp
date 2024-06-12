@@ -1609,6 +1609,10 @@ void decode_thumb_hi_register_operations_branch_exchange(CPU& cpu, uint16_t inst
       // cmp hd, rs
       arm_instruction = ARM_CMP_REGISTER_OPCODE | ((destination_register + 8) << 16) | source_register;
       break;
+    case 7:
+      // cmp hd, hs
+      arm_instruction = ARM_CMP_REGISTER_OPCODE | ((destination_register + 8) << 16) | (source_register + 8);
+      break;
     case 9:
       // mov rd, hs
       arm_instruction = ARM_MOV_REGISTER_NO_SET_COND_OPCODE | (destination_register << 12) | (source_register + 8);
@@ -1632,7 +1636,7 @@ void decode_thumb_hi_register_operations_branch_exchange(CPU& cpu, uint16_t inst
   }
 
   if (operation > 11) {
-    decode_branch_and_exchange(cpu, instruction);
+    decode_branch_and_exchange(cpu, arm_instruction);
   } else {
     decode_data_processing(cpu, arm_instruction);
   }
@@ -1711,12 +1715,12 @@ void decode_thumb_load_store_sign_extended_byte_halfword(CPU& cpu, uint16_t inst
       arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_STR_REGISTER_OFFSET_OPCODE | ARM_HALFWORD_FLAG | input_component;
       break;
     case 1:
-      // ldrh rd, [rb, ro]
-      arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_LDR_REGISTER_OFFSET_OPCODE | ARM_HALFWORD_FLAG | input_component;
-      break;
-    case 2:
       // ldsb rd, [rb, ro]
       arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_LDR_REGISTER_OFFSET_OPCODE | ARM_SIGNED_FLAG | input_component;
+      break;
+    case 2:
+      // ldrh rd, [rb, ro]
+      arm_instruction = ARM_BASE_HALFWORD_OR_SIGNED_LDR_REGISTER_OFFSET_OPCODE | ARM_HALFWORD_FLAG | input_component;
       break;
     case 3: 
       // ldsh rd, [rb, ro]
@@ -1748,13 +1752,13 @@ void decode_thumb_load_store_immediate_offset(CPU& cpu, uint16_t instruction) {
       arm_instruction = ARM_STR_IMMEDIATE_OFFSET_OPCODE | input_component | offset;
       break;
     case 1:
-      // strb rd, [rb, #offset]
-      arm_instruction = ARM_STR_IMMEDIATE_OFFSET_OPCODE | ARM_BYTE_QUANTITY_FLAG | input_component | offset;
-      break;
-    case 2:
       // ldr rd, [rb, #offset]
       offset <<= 2; // Shift the offset by 2 to make it a 7-bit value.
       arm_instruction = ARM_LDR_IMMEDIATE_OFFSET_OPCODE | input_component | offset;
+      break;
+    case 2:
+      // strb rd, [rb, #offset]
+      arm_instruction = ARM_STR_IMMEDIATE_OFFSET_OPCODE | ARM_BYTE_QUANTITY_FLAG | input_component | offset;
       break;
     case 3:
       // ldrb rd, [rb, #offset]
@@ -1769,7 +1773,7 @@ void decode_thumb_load_store_immediate_offset(CPU& cpu, uint16_t instruction) {
 // =================================================================================================
 
 static constexpr uint32_t ARM_BASE_HALFWORD_OR_SIGNED_STR_IMMEDIATE_OFFSET_OPCODE = (1 << 24) | (1 << 23) | (1 << 22) | (1 << 7) | (1 << 4);
-static constexpr uint32_t ARM_BASE_HALFWORD_OR_SIGNED_LDR_IMMEDIATE_OFFSET_OPCODE = ARM_BASE_HALFWORD_OR_SIGNED_STR_REGISTER_OFFSET_OPCODE | (1 << 20);
+static constexpr uint32_t ARM_BASE_HALFWORD_OR_SIGNED_LDR_IMMEDIATE_OFFSET_OPCODE = ARM_BASE_HALFWORD_OR_SIGNED_STR_IMMEDIATE_OFFSET_OPCODE | (1 << 20);
 
 void decode_thumb_load_store_halfword(CPU& cpu, uint16_t instruction) {
   uint8_t destination_register = instruction & 0x7; // Last 3 bits
@@ -1805,10 +1809,10 @@ void decode_thumb_sp_relative_load_store(CPU& cpu, uint16_t instruction) {
   uint32_t arm_instruction = 0;
   if (is_load) {
     // ldr rd, [sp, #immediate_offset]
-    arm_instruction = ARM_LDR_IMMEDIATE_OFFSET_OPCODE | input_component;
+    arm_instruction = ARM_LDR_SP_RELATIVE_OPCODE | input_component;
   } else {
     // str rd, [sp, #immediate_offset]
-    arm_instruction = ARM_STR_IMMEDIATE_OFFSET_OPCODE | input_component;
+    arm_instruction = ARM_STR_SP_RELATIVE_OPCODE | input_component;
   }
   decode_load_and_store(cpu, arm_instruction);
 }
@@ -1842,7 +1846,7 @@ void decode_thumb_load_address(CPU& cpu, uint16_t instruction) {
 // THUMB - Add offset to SP
 // =================================================================================================
 
-static constexpr uint32_t ARM_ADD_TO_SP_AND_STORE_IN_SP_OPCODE = ARM_ADD_TO_PC_OPCODE | (SP << 12);
+static constexpr uint32_t ARM_ADD_TO_SP_AND_STORE_IN_SP_OPCODE = ARM_ADD_TO_SP_OPCODE | (SP << 12);
 static constexpr uint32_t ARM_SUB_FROM_SP_AND_STORE_IN_SP_OPCODE = (SUB << 21) | IMMEDIATE | (SP << 16) | (SP << 12);
 
 void decode_thumb_add_offset_to_stack_pointer(CPU& cpu, uint16_t instruction) {
@@ -1865,11 +1869,11 @@ void decode_thumb_add_offset_to_stack_pointer(CPU& cpu, uint16_t instruction) {
 // =================================================================================================
 
 static constexpr uint32_t ARM_STM_TO_SP_OPCODE = (1 << 27) | (1 << 24) | (1 << 21) | (SP << 16);
-static constexpr uint32_t ARM_LDM_TO_SP_OPCODE = ARM_STM_TO_SP_OPCODE | (1 << 20);
+static constexpr uint32_t ARM_LDM_TO_SP_OPCODE = (1 << 27) | (1 << 23) | (1 << 21) | (1 << 20) | (SP << 16);
 
 void decode_thumb_push_pop_registers(CPU& cpu, uint16_t instruction) {
-  uint16_t register_list = (instruction & 0xFF) << 8; // Last 8 bits
-  uint8_t operation = ((instruction >> 8) & 1) | ((instruction >> 11) & 1); // Next bit (PC/LR bit), skip 2 bits, and get the next bit (Load/Store bit).
+  uint16_t register_list = (instruction & 0xFF); // Last 8 bits
+  uint8_t operation = ((instruction >> 8) & 1) | (((instruction >> 11) & 1) << 1); // Next bit (PC/LR bit), skip 2 bits, and get the next bit (Load/Store bit).
 
   uint32_t arm_instruction = 0;
   switch (operation) {
@@ -1897,11 +1901,11 @@ void decode_thumb_push_pop_registers(CPU& cpu, uint16_t instruction) {
 // THUMB - Multiple Load/Store
 // =================================================================================================
 
-static constexpr uint32_t ARM_STM_OPCODE = (1 << 27) | (1 << 21);
+static constexpr uint32_t ARM_STM_OPCODE = (1 << 27) | (1 << 23) | (1 << 21);
 static constexpr uint32_t ARM_LDM_OPCODE = ARM_STM_OPCODE | (1 << 20);
 
 void decode_thumb_multiple_load_store(CPU& cpu, uint16_t instruction) {
-  uint16_t register_list = (instruction & 0xFF) << 8; // Last 8 bits, shifted by 8 to make it a 16-bit value
+  uint16_t register_list = (instruction & 0xFF); // Last 8 bits, shifted by 8 to make it a 16-bit value
   uint8_t base_register = (instruction >> 8) & 0x7; // Next 3 bits
   bool is_load = instruction & (1 << 11); // Next bit
   uint32_t input_component = (base_register << 16) | register_list;
