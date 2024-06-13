@@ -1929,15 +1929,17 @@ void decode_thumb_conditional_branch(CPU& cpu, uint16_t instruction) {
   uint16_t signed_offset = (instruction & 0xFF) << 1; // Last 8 bits, shifted by 1 to make it a 9-bit value
   uint8_t condition = (instruction >> 8) & 0xF; // Next 4 bits
 
-  // Sign extend the offset to become a 24-bit value
-  uint32_t offset = signed_offset;
+  // Sign extend the offset to become a 16-bit value
+  int16_t offset = signed_offset;
   if (offset & 0x100) {
-    offset |= 0xFFFFFE00;
+    offset |= 0xFE00;
   }
 
-  uint32_t arm_instruction = ARM_BRANCH_OPCODE | offset;
   if (evaluate_arm_condition(cpu, condition)) {
-    decode_branch_and_link(cpu, arm_instruction);
+    uint32_t pc_with_prefetch = cpu.get_register_value(PC) + 2 * cpu.get_instruction_size();
+    cpu.set_register_value(PC, pc_with_prefetch + offset);
+  } else {
+    cpu.increment_pc();
   }
 }
 
@@ -1960,7 +1962,8 @@ void decode_thumb_unconditional_branch(CPU& cpu, uint16_t instruction) {
   if (offset & 0x800) {
     offset |= 0xFFFFF000;
   }
-  branch(offset, cpu);
+  uint32_t pc_with_prefetch = cpu.get_register_value(PC) + 2 * cpu.get_instruction_size();
+  cpu.set_register_value(PC, pc_with_prefetch + offset);
 }
 
 // =================================================================================================
@@ -1970,7 +1973,7 @@ void decode_thumb_unconditional_branch(CPU& cpu, uint16_t instruction) {
 void decode_thumb_long_branch_with_link(CPU& cpu, uint16_t instruction) {
   bool is_low_offset = instruction & (1 << 11);
   uint16_t offset = (instruction & 0x7FF); // Last 11 bits
-  if (is_low_offset) {
+  if (!is_low_offset) {
     // LR := PC + OffsetHigh << 12
     uint32_t pc = cpu.get_register_value(PC) + 2 * cpu.get_instruction_size();
     cpu.set_register_value(LR, pc + (offset << 12));
