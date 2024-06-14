@@ -1,5 +1,6 @@
 #include "ram.h"
 #include <fstream>
+#include <cstring>
 
 void ram_load_rom(RAM& ram, std::string const& path) {
   std::ifstream bin_in(path, std::ios::binary);
