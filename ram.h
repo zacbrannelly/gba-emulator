@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <map>
+#include <string>
 #include "memory_map.h"
 
 #define MEMORY_MASK 0x0F000000
