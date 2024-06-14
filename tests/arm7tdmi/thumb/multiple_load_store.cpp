@@ -1,11 +1,15 @@
 #include <catch_amalgamated.hpp>
 #include <cstdint>
-#include <utils.h>
+#include <cpu.h>
 
 TEST_CASE("Multiple Load/Store", "[thumb, multiple-load-store]") {
   CPU cpu;
   REQUIRE_NOTHROW(cpu_init(cpu));
-  REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/thumb/multiple_load_store.bin"));
+
+  // Map the GamePak ROM to 0x0 for these unit tests.
+  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+
+  REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/multiple_load_store.bin"));
 
   // Enter Thumb State
   cpu.cspr |= CSPR_THUMB_STATE;
@@ -19,8 +23,8 @@ TEST_CASE("Multiple Load/Store", "[thumb, multiple-load-store]") {
     cpu.set_register_value(2, 0x87654321);
     cpu_cycle(cpu);
 
-    REQUIRE(*(uint32_t*)&cpu.memory[0x2000] == 0x12345678);
-    REQUIRE(*(uint32_t*)&cpu.memory[0x2000 + 4] == 0x87654321);
+    REQUIRE(ram_read_word(cpu.ram, 0x2000) == 0x12345678);
+    REQUIRE(ram_read_word(cpu.ram, 0x2000 + 4) == 0x87654321);
     REQUIRE(cpu.get_register_value(0) == 0x2000 + 8);
   }
 
@@ -28,8 +32,8 @@ TEST_CASE("Multiple Load/Store", "[thumb, multiple-load-store]") {
     cpu.set_register_value(PC, 0x2);
 
     // ldmia r0!, {r1, r2}
-    *(uint32_t*)&cpu.memory[0x2000] = 0x12345678;
-    *(uint32_t*)&cpu.memory[0x2000 + 4] = 0x87654321;
+    ram_write_word(cpu.ram, 0x2000, 0x12345678);
+    ram_write_word(cpu.ram, 0x2000 + 4, 0x87654321);
     cpu.set_register_value(0, 0x2000);
     cpu_cycle(cpu);
 

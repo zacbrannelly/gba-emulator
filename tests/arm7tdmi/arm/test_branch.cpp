@@ -1,13 +1,17 @@
 #include <catch_amalgamated.hpp>
 #include <cstdint>
-#include <utils.h>
+#include <cpu.h>
 
 TEST_CASE("Branch (B)", "[arm, branch]") {
   CPU cpu;
   REQUIRE_NOTHROW(cpu_init(cpu));
 
+  // Map the GamePak ROM to 0x0 for these unit tests.
+  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+
+
   SECTION("Infinite Loop Program") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_branch_infinite_loop.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_branch_infinite_loop.bin"));
     cpu.registers[PC] = 0x0;
     cpu.registers[LR] = 0x0;
 
@@ -19,7 +23,7 @@ TEST_CASE("Branch (B)", "[arm, branch]") {
   }
 
   SECTION("Jump Ahead Program") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_branch_ahead.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_branch_ahead.bin"));
     cpu.registers[PC] = 0x0;
     cpu.registers[LR] = 0x0;
 
@@ -31,7 +35,7 @@ TEST_CASE("Branch (B)", "[arm, branch]") {
   }
 
   SECTION("Jump Before Program") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_branch_before.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_branch_before.bin"));
     cpu.registers[PC] = 0x0;
     cpu.registers[LR] = 0x0;
 
@@ -46,7 +50,7 @@ TEST_CASE("Branch (B)", "[arm, branch]") {
   }
 
   SECTION("Branch With Link Program") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_branch_link.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_branch_link.bin"));
     cpu.registers[PC] = 0x0;
     cpu.registers[LR] = 0x0;
 

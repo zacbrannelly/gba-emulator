@@ -1,16 +1,20 @@
 #include <catch_amalgamated.hpp>
 #include <cstdint>
-#include <utils.h>
+#include <cpu.h>
 
 TEST_CASE("Move Shifted Register", "[thumb, move-shifted-register]") {
   CPU cpu;
   REQUIRE_NOTHROW(cpu_init(cpu));
 
+  // Map the GamePak ROM to 0x0 for these unit tests.
+  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+
+
   // Enter Thumb State
   cpu.cspr |= CSPR_THUMB_STATE;
 
   SECTION("MOV (shifted register)") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/thumb/move_shifted_register.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/move_shifted_register.bin"));
     cpu.registers[PC] = 0x0;
 
     // lsl r0, r1, #5

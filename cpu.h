@@ -2,6 +2,7 @@
 #include <vector>
 #include <map>
 #include <functional>
+#include "ram.h"
 
 static constexpr uint8_t ARM_INSTRUCTION_SIZE = 4;
 static constexpr uint8_t THUMB_INSTRUCTION_SIZE = 2;
@@ -131,8 +132,8 @@ enum DataProcessingOpcodes {
 // Used in the GameBoy Advance (SP)
 // Manual: https://www.dwedit.org/files/ARM7TDMI.pdf
 struct CPU {
-  // 65kb of memory
-  uint8_t* memory = new uint8_t[0x10000];
+  // Memory Mapper
+  RAM ram;
 
   // ARM State - access to the 16 general-purpose registers (r0 - r15)
   //   Where r15 is the Program Counter (PC), r13 is the Stack Pointer (SP) and r14 is the Link Register (LR)

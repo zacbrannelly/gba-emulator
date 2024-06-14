@@ -1,11 +1,15 @@
 #include <catch_amalgamated.hpp>
 #include <cstdint>
-#include <utils.h>
+#include <cpu.h>
 
 TEST_CASE("ALU Operations", "[thumb, alu-operations]") {
   CPU cpu;
   REQUIRE_NOTHROW(cpu_init(cpu));
-  REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/thumb/alu_operations.bin"));
+
+  // Map the GamePak ROM to 0x0 for these unit tests.
+  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+
+  REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/alu_operations.bin"));
 
   // Enter Thumb State
   cpu.cspr |= CSPR_THUMB_STATE;

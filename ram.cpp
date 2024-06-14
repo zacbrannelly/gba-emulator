@@ -1,12 +1,10 @@
-#include "utils.h"
+#include "ram.h"
 #include <fstream>
-#include <stdexcept>
-#include <cstring>
 
-void load_rom(CPU& cpu, const std::string& filename) {
-  std::ifstream bin_in(filename, std::ios::binary);
+void ram_load_rom(RAM& ram, std::string const& path) {
+  std::ifstream bin_in(path, std::ios::binary);
   if (!bin_in.is_open()) {
-    throw std::runtime_error("Error: Could not open file " + filename);
+    throw std::runtime_error("Error: Could not open file " + path);
   }
 
   // Read binary size.
@@ -22,7 +20,7 @@ void load_rom(CPU& cpu, const std::string& filename) {
   bin_in.close();
 
   // Copy binary data to memory.
-  memcpy(cpu.memory, bin_data, bin_size);
+  memcpy(ram.game_pak_rom, bin_data, bin_size);
 
   delete [] bin_data;
 }

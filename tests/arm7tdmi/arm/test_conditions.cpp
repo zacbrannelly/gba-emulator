@@ -1,6 +1,6 @@
 #include <catch_amalgamated.hpp>
 #include <cstdint>
-#include <utils.h>
+#include <cpu.h>
 
 void test_instruction(CPU& cpu, uint32_t expected) {
   cpu.registers[0] = 0x12121212;
@@ -11,7 +11,11 @@ void test_instruction(CPU& cpu, uint32_t expected) {
 TEST_CASE("Conditional Execution", "[arm, conditionals]") {
   CPU cpu;
   REQUIRE_NOTHROW(cpu_init(cpu));
-  REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_conditions.bin"));
+
+  // Map the GamePak ROM to 0x0 for these unit tests.
+  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+
+  REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_conditions.bin"));
 
   SECTION("Zero Flag (Z)") {
     cpu.registers[PC] = 0;

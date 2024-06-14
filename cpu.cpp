@@ -929,9 +929,9 @@ void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t
   }
 
   if (control_flags & BYTE_QUANTITY) {
-    cpu.memory[base_address] = value & 0xFF;
+    ram_write_byte(cpu.ram, base_address, value & 0xFF);
   } else {
-    *(uint32_t*)&cpu.memory[base_address] = value;
+    ram_write_word(cpu.ram, base_address, value);
   }
 
   if (!is_pre_transfer) {
@@ -972,10 +972,10 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
   }
 
   if (control_flags & BYTE_QUANTITY) {
-    cpu.set_register_value(destination_register, cpu.memory[base_address] & 0xFF);
+    cpu.set_register_value(destination_register, ram_read_byte(cpu.ram, base_address) & 0xFF);
   } else {
     uint32_t word_aligned_address = base_address & ~3;
-    uint32_t word_aligned_value = *(uint32_t*)&cpu.memory[word_aligned_address];
+    uint32_t word_aligned_value = ram_read_word(cpu.ram, word_aligned_address);
     if (base_address != word_aligned_address) {
       uint32_t offset_from_word = base_address - word_aligned_address;
       uint32_t value = (word_aligned_value >> (offset_from_word * 8)) | (word_aligned_value << (32 - (offset_from_word * 8)));
@@ -1051,16 +1051,16 @@ void load_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t destinat
 
   if (is_halfword && !is_signed) {
     // LDRH - Load halfword
-    value = *(uint16_t*)&cpu.memory[base_address];
+    value = ram_read_half_word(cpu.ram, base_address);
   } else if (is_halfword && is_signed) {
     // LDRSH - Load signed halfword
-    value = *(int16_t*)&cpu.memory[base_address];
+    value = ram_read_half_word_signed(cpu.ram, base_address);
   } else if (is_signed) {
     // LDRSB - Load signed byte
-    value = *(int8_t*)&cpu.memory[base_address];
+    value = ram_read_byte_signed(cpu.ram, base_address);
   } else {
     // LDRB - Load byte
-    value = cpu.memory[base_address];
+    value = ram_read_byte(cpu.ram, base_address);
   }
 
   cpu.set_register_value(destination_register, value);
@@ -1123,7 +1123,7 @@ void store_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t source_
 
   if (is_halfword && !is_signed) {
     // STRH - Store halfword
-    *(uint16_t*)&cpu.memory[base_address] = value & 0xFFFF;
+    ram_write_half_word(cpu.ram, base_address, value & 0xFFFF);
   } else {
     throw std::runtime_error("Cannot store use store op on signed halfword or bytes");
   }
@@ -1215,13 +1215,13 @@ void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t
       base_address += offset;
     }
 
-    uint32_t value = *(uint32_t*)&cpu.memory[base_address];
+    uint32_t value = ram_read_word(cpu.ram, base_address);
     if (!pc_in_list && load_psr) {
       // Load directly into User mode registers if S bit is set and PC is not in the list.
       cpu.registers[register_idx] = value;
     } else {
       // Load to the appropriate register set.
-      cpu.set_register_value(register_idx, *(uint32_t*)&cpu.memory[base_address]);
+      cpu.set_register_value(register_idx, ram_read_word(cpu.ram, base_address));
     }
 
     if (load_psr && register_idx == PC) {
@@ -1265,9 +1265,9 @@ void block_store(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_
 
     if (load_psr) {
       // If S bit is set, load the User mode registers into the memory.
-      *(uint32_t*)&cpu.memory[base_address] = cpu.registers[register_idx];
+      ram_write_word(cpu.ram, base_address, cpu.registers[register_idx]);
     } else {
-      *(uint32_t*)&cpu.memory[base_address] = cpu.get_register_value(register_idx);
+      ram_write_word(cpu.ram, base_address, cpu.get_register_value(register_idx));
     }
 
     if (!is_pre_transfer) {
@@ -2220,10 +2220,7 @@ uint32_t cpu_read_next_arm_instruction(CPU& cpu) {
   uint32_t pc = cpu.get_register_value(PC) & ~0x3;
 
   // Fetch the instruction from the memory
-  uint32_t instruction = 0;
-  memcpy(&instruction, &cpu.memory[pc], ARM_INSTRUCTION_SIZE);
-
-  return instruction;
+  return ram_read_word(cpu.ram, pc);
 }
 
 uint16_t cpu_read_next_thumb_instruction(CPU& cpu) {
@@ -2231,10 +2228,7 @@ uint16_t cpu_read_next_thumb_instruction(CPU& cpu) {
   uint32_t pc = cpu.get_register_value(PC) & ~0x1;
 
   // Fetch the instruction from the memory
-  uint16_t instruction = 0;
-  memcpy(&instruction, &cpu.memory[pc], THUMB_INSTRUCTION_SIZE);
-
-  return instruction;
+  return ram_read_half_word(cpu.ram, pc);
 }
 
 void cpu_cycle(CPU& cpu) {

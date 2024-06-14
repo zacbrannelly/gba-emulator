@@ -1,13 +1,17 @@
 #include <catch_amalgamated.hpp>
 #include <cstdint>
-#include <utils.h>
+#include <cpu.h>
 
 TEST_CASE("Data Processing", "[arm, data-processing]") {
   CPU cpu;
   REQUIRE_NOTHROW(cpu_init(cpu));
 
+  // Map the GamePak ROM to 0x0 for these unit tests.
+  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+
+
   SECTION("MOV") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/mov.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/mov.bin"));
     cpu.registers[PC] = 0x0;
     for (int i = 0; i < 4; i++) {
       cpu.registers[i] = 0x0;
@@ -54,7 +58,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("MOV to PC") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/mov_to_pc.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/mov_to_pc.bin"));
     // In supervisor mode, set the PC and LR.
     cpu.cspr = (uint32_t)Supervisor;
     cpu.set_register_value(PC, 0x0);
@@ -72,7 +76,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("AND") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/and.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/and.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -93,7 +97,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("EOR") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/eor.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/eor.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -114,7 +118,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("SUB") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/sub.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/sub.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -136,7 +140,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("RSB") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/rsb.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/rsb.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -157,7 +161,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("ADD") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/add.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/add.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -178,7 +182,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("ADC") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/adc.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/adc.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -203,7 +207,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("SBC") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/sbc.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/sbc.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -228,7 +232,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("RSC") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/rsc.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/rsc.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -253,7 +257,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("TST") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/tst.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/tst.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -276,7 +280,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("TEQ") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/teq.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/teq.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -299,7 +303,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("CMP") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/cmp.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/cmp.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -322,7 +326,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("CMN") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/cmn.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/cmn.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -345,7 +349,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("ORR") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/orr.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/orr.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -377,7 +381,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("BIC") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/bic.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/bic.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -409,7 +413,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("MVN") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/mvn.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/mvn.bin"));
     cpu.cspr = (uint32_t)User;
     cpu.set_register_value(PC, 0x0);
 
@@ -430,7 +434,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("MRS") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/mrs.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/mrs.bin"));
     cpu.cspr = (uint32_t)Supervisor;
     cpu.set_register_value(PC, 0x0);
 
@@ -449,7 +453,7 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
   }
 
   SECTION("MSR") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/data_processing/msr.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/data_processing/msr.bin"));
     cpu.cspr = (uint32_t)Supervisor;
     cpu.set_register_value(PC, 0x0);
 

@@ -1,13 +1,17 @@
 #include <catch_amalgamated.hpp>
 #include <cstdint>
-#include <utils.h>
+#include <cpu.h>
 
 TEST_CASE("Multiply", "[arm, multiply]") {
   CPU cpu;
   REQUIRE_NOTHROW(cpu_init(cpu));
 
+  // Map the GamePak ROM to 0x0 for these unit tests.
+  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+
+
   SECTION("MUL") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_multiply.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_multiply.bin"));
     cpu.registers[PC] = 0x0;
 
     // MUL R0, R1, R2
@@ -19,7 +23,7 @@ TEST_CASE("Multiply", "[arm, multiply]") {
   }
 
   SECTION("MLA") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_multiply.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_multiply.bin"));
     cpu.registers[PC] = 0x4;
 
     // MLA R0, R1, R2, R3
@@ -32,7 +36,7 @@ TEST_CASE("Multiply", "[arm, multiply]") {
   }
 
   SECTION("UMULL") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_multiply.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_multiply.bin"));
     cpu.registers[PC] = 0x8;
 
     // UMULL R0, R1, R2, R3
@@ -45,7 +49,7 @@ TEST_CASE("Multiply", "[arm, multiply]") {
   }
 
   SECTION("UMLAL") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_multiply.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_multiply.bin"));
     cpu.registers[PC] = 0xC;
 
     // UMLAL R0, R1, R2, R3
@@ -61,7 +65,7 @@ TEST_CASE("Multiply", "[arm, multiply]") {
   }
 
   SECTION("SMULL") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_multiply.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_multiply.bin"));
     cpu.registers[PC] = 0x10;
 
     // SMULL R0, R1, R2, R3
@@ -75,7 +79,7 @@ TEST_CASE("Multiply", "[arm, multiply]") {
   }
 
   SECTION("SMLAL") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_multiply.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_multiply.bin"));
     cpu.registers[PC] = 0x14;
 
     // SMLAL R0, R1, R2, R3

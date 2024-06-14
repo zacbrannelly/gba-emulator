@@ -1,13 +1,17 @@
 #include <catch_amalgamated.hpp>
 #include <cstdint>
-#include <utils.h>
+#include <cpu.h>
 
 TEST_CASE("Branch and Exchange (BX)", "[arm, branch-exchange]") {
   CPU cpu;
   REQUIRE_NOTHROW(cpu_init(cpu));
 
+  // Map the GamePak ROM to 0x0 for these unit tests.
+  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+
+
   SECTION("ARM Mode") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_branch_exchange.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_branch_exchange.bin"));
     cpu.registers[PC] = 0x0;
     cpu.registers[LR] = 0x0;
     cpu.registers[0] = 0x0; // R0 is the branch address, with first bit set to 0 to indicate ARM mode.
@@ -19,7 +23,7 @@ TEST_CASE("Branch and Exchange (BX)", "[arm, branch-exchange]") {
   }
 
   SECTION("THUMB Mode") {
-    REQUIRE_NOTHROW(load_rom(cpu, "./tests/arm7tdmi/arm/test_branch_exchange.bin"));
+    REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_branch_exchange.bin"));
     cpu.registers[PC] = 0x0;
     cpu.registers[LR] = 0x0;
     cpu.registers[0] = 0x5; // R0 is the branch address, with first bit set to 1 to indicate THUMB mode.
