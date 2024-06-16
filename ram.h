@@ -42,7 +42,7 @@ struct RAM {
   std::map<uint32_t, uint8_t*> memory_map = {
     {BIOS_START,                 system_rom},
     {WORKING_RAM_ON_BOARD_START, external_working_ram},
-    {WORKING_RAM_ON_BOARD_START, internal_working_ram},
+    {WORKING_RAM_ON_CHIP_START, internal_working_ram},
     {IO_REGISTERS_START,         io_registers},
     {PALETTE_RAM_START,          palette_ram},
     {VRAM_START,                 video_ram},
@@ -52,6 +52,7 @@ struct RAM {
 };
 
 void ram_load_rom(RAM& ram, std::string const& path);
+void ram_load_bios(RAM& ram, std::string const& path);
 
 inline uint8_t ram_read_byte(RAM& ram, uint32_t address) {
   return ram.memory_map[address & MEMORY_MASK][address & MEMORY_NOT_MASK];
@@ -86,5 +87,7 @@ inline void ram_write_half_word(RAM& ram, uint32_t address, uint16_t value) {
 }
 
 inline void ram_write_word(RAM& ram, uint32_t address, uint32_t value) {
-  *(uint32_t*)&ram.memory_map[address & MEMORY_MASK][address & MEMORY_NOT_MASK] = value;
+  uint8_t* memory = ram.memory_map[address & MEMORY_MASK];
+  uint32_t offset = address & MEMORY_NOT_MASK;
+  *(uint32_t*)&memory[offset] = value;
 }

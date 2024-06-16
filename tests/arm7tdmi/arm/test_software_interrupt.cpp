@@ -18,7 +18,8 @@ TEST_CASE("Software Interrupt", "[arm, software-interrupt]") {
     // swi 1
     cpu_cycle(cpu);
 
-    REQUIRE(cpu.registers[PC] == 0x8);
+    REQUIRE(cpu.get_register_value(PC) == 0x8);
+    REQUIRE(cpu.get_register_value(LR) == 0x4);
     REQUIRE(cpu.cspr == (uint32_t)Supervisor);
     REQUIRE(cpu.mode_to_scspr[Supervisor] == (uint32_t)User);
   }

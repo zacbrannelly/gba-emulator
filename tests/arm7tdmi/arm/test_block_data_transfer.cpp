@@ -79,9 +79,9 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
     cpu.set_register_value(1, 0x0);
     cpu.set_register_value(2, 0x0);
     cpu.set_register_value(3, 0x0);
-    ram_write_word(cpu.ram, 0x6C, 0x12121212);
-    ram_write_word(cpu.ram, 0x68, 0x34343434);
-    ram_write_word(cpu.ram, 0x64, 0x56565656);
+    ram_write_word(cpu.ram, 0x70 - 4, 0x56565656);
+    ram_write_word(cpu.ram, 0x70 - 8, 0x34343434);
+    ram_write_word(cpu.ram, 0x70 - 12, 0x12121212);
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(1) == 0x12121212);
@@ -94,9 +94,9 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
     cpu.set_register_value(1, 0x0);
     cpu.set_register_value(2, 0x0);
     cpu.set_register_value(3, 0x0);
-    ram_write_word(cpu.ram, 0x6C, 0x12121212);
-    ram_write_word(cpu.ram, 0x68, 0x34343434);
-    ram_write_word(cpu.ram, 0x64, 0x56565656);
+    ram_write_word(cpu.ram, 0x70 - 4, 0x56565656);
+    ram_write_word(cpu.ram, 0x70 - 8, 0x34343434);
+    ram_write_word(cpu.ram, 0x70 - 12, 0x12121212);
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(1) == 0x12121212);
@@ -109,9 +109,9 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
     cpu.set_register_value(1, 0x0);
     cpu.set_register_value(2, 0x0);
     cpu.set_register_value(3, 0x0);
-    ram_write_word(cpu.ram, 0x70, 0x12121212);
-    ram_write_word(cpu.ram, 0x6C, 0x34343434);
-    ram_write_word(cpu.ram, 0x68, 0x56565656);
+    ram_write_word(cpu.ram, 0x70, 0x56565656);
+    ram_write_word(cpu.ram, 0x70 - 4, 0x34343434);
+    ram_write_word(cpu.ram, 0x70 - 8, 0x12121212);
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(1) == 0x12121212);
@@ -124,15 +124,15 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
     cpu.set_register_value(1, 0x0);
     cpu.set_register_value(2, 0x0);
     cpu.set_register_value(3, 0x0);
-    ram_write_word(cpu.ram, 0x70, 0x12121212);
-    ram_write_word(cpu.ram, 0x6C, 0x34343434);
-    ram_write_word(cpu.ram, 0x68, 0x56565656);
+    ram_write_word(cpu.ram, 0x70, 0x56565656);
+    ram_write_word(cpu.ram, 0x70 - 4, 0x34343434);
+    ram_write_word(cpu.ram, 0x70 - 8, 0x12121212);
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(1) == 0x12121212);
     REQUIRE(cpu.get_register_value(2) == 0x34343434);
     REQUIRE(cpu.get_register_value(3) == 0x56565656);
-    REQUIRE(cpu.get_register_value(0) == 0x64);
+    REQUIRE(cpu.get_register_value(0) == 0x70 - 12);
   }
 
   SECTION("STM") {
@@ -202,28 +202,28 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
     cpu.set_register_value(1, 0x12121212);
     cpu.set_register_value(2, 0x34343434);
     cpu.set_register_value(3, 0x56565656);
-    ram_write_word(cpu.ram, 0x6C, 0x0);
-    ram_write_word(cpu.ram, 0x68, 0x0);
-    ram_write_word(cpu.ram, 0x64, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 4, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 8, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 12, 0x0);
     cpu_cycle(cpu);
 
-    REQUIRE(ram_read_word(cpu.ram, 0x6C) == 0x12121212);
-    REQUIRE(ram_read_word(cpu.ram, 0x68) == 0x34343434);
-    REQUIRE(ram_read_word(cpu.ram, 0x64) == 0x56565656);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 4) == 0x56565656);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 8) == 0x34343434);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 12) == 0x12121212);
 
     // stmdb r0!, {r1, r2, r3} - Pre-decrement store, store r1, r2, and r3 into memory at r0 - 4 and decrement r0 by 12.
     cpu.set_register_value(0, 0x70);
     cpu.set_register_value(1, 0x12121212);
     cpu.set_register_value(2, 0x34343434);
     cpu.set_register_value(3, 0x56565656);
-    ram_write_word(cpu.ram, 0x6C, 0x0);
-    ram_write_word(cpu.ram, 0x68, 0x0);
-    ram_write_word(cpu.ram, 0x64, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 4, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 8, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 12, 0x0);
     cpu_cycle(cpu);
 
-    REQUIRE(ram_read_word(cpu.ram, 0x6C) == 0x12121212);
-    REQUIRE(ram_read_word(cpu.ram, 0x68) == 0x34343434);
-    REQUIRE(ram_read_word(cpu.ram, 0x64) == 0x56565656);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 4) == 0x56565656);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 8) == 0x34343434);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 12) == 0x12121212);
     REQUIRE(cpu.get_register_value(0) == 0x64);
 
     // stmda r0, {r1, r2, r3} - Post-decrement store, store r1, r2, and r3 into memory at r0.
@@ -232,13 +232,13 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
     cpu.set_register_value(2, 0x34343434);
     cpu.set_register_value(3, 0x56565656);
     ram_write_word(cpu.ram, 0x70, 0x0);
-    ram_write_word(cpu.ram, 0x6C, 0x0);
-    ram_write_word(cpu.ram, 0x68, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 4, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 8, 0x0);
     cpu_cycle(cpu);
 
-    REQUIRE(ram_read_word(cpu.ram, 0x70) == 0x12121212);
-    REQUIRE(ram_read_word(cpu.ram, 0x6C) == 0x34343434);
-    REQUIRE(ram_read_word(cpu.ram, 0x68) == 0x56565656);
+    REQUIRE(ram_read_word(cpu.ram, 0x70) == 0x56565656);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 4) == 0x34343434);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 8) == 0x12121212);
 
     // stmda r0!, {r1, r2, r3} - Post-decrement store, store r1, r2, and r3 into memory at r0 and decrement r0 by 12.
     cpu.set_register_value(0, 0x70);
@@ -246,14 +246,14 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
     cpu.set_register_value(2, 0x34343434);
     cpu.set_register_value(3, 0x56565656);
     ram_write_word(cpu.ram, 0x70, 0x0);
-    ram_write_word(cpu.ram, 0x6C, 0x0);
-    ram_write_word(cpu.ram, 0x68, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 4, 0x0);
+    ram_write_word(cpu.ram, 0x70 - 8, 0x0);
     cpu_cycle(cpu);
 
-    REQUIRE(ram_read_word(cpu.ram, 0x70) == 0x12121212);
-    REQUIRE(ram_read_word(cpu.ram, 0x6C) == 0x34343434);
-    REQUIRE(ram_read_word(cpu.ram, 0x68) == 0x56565656);
-    REQUIRE(cpu.get_register_value(0) == 0x64);
+    REQUIRE(ram_read_word(cpu.ram, 0x70) == 0x56565656);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 4) == 0x34343434);
+    REQUIRE(ram_read_word(cpu.ram, 0x70 - 8) == 0x12121212);
+    REQUIRE(cpu.get_register_value(0) == 0x70 - 12);
   }
 
   SECTION("User bank transfer and Mode changes") {
@@ -280,7 +280,7 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
     cpu_cycle(cpu);
     
     // Check the user mode registers are saved on the stack.
-    REQUIRE(ram_read_word(cpu.ram, 0x100 - 56) == 0x32);
-    REQUIRE(ram_read_word(cpu.ram, 0x100 - 60) == 0x11);
+    REQUIRE(ram_read_word(cpu.ram, 0x100 - 4) == 0x11);
+    REQUIRE(ram_read_word(cpu.ram, 0x100 - 8) == 0x32);
   }
 }

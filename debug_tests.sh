@@ -15,7 +15,7 @@ g++ -o ./tests/bin/test_runner \
   $CPP_FILES \
   ./3rdparty/catch_amalgamated.cpp \
   cpu.cpp \
-  utils.cpp \
+  ram.cpp \
   -I./3rdparty \
   -I./ \
   -std=c++20 \

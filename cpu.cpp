@@ -1125,7 +1125,7 @@ void store_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t source_
     // STRH - Store halfword
     ram_write_half_word(cpu.ram, base_address, value & 0xFFFF);
   } else {
-    throw std::runtime_error("Cannot store use store op on signed halfword or bytes");
+    throw std::runtime_error("Cannot use store op on signed halfword or bytes");
   }
 
   if (!is_pre_transfer) {
@@ -1197,37 +1197,35 @@ void decode_half_word_load_and_store(CPU& cpu, uint32_t opcode) {
 // Control bits - Pre/Post - Up/Down - PSR / Force User Bit - Write Back (4 bits)
 void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t control_flags) {
   uint32_t base_address = cpu.get_register_value(base_register);
-  uint32_t offset = (control_flags & (1 << 2)) ? 4 : -4;
+  bool is_increment = control_flags & (1 << 2);
+  uint32_t offset = is_increment ? 4 : -4;
   bool is_pre_transfer = control_flags & (1 << 3);
   bool write_back = control_flags & 1;
   bool load_psr = control_flags & (1 << 1);
   bool pc_in_list = register_list & (1 << 15);
+  bool base_in_list = register_list & (1 << base_register);
 
   if (base_register == PC) {
     throw std::runtime_error("Cannot use PC as base register");
   }
 
+  // Count registers to be transferred.
+  uint32_t register_count = 0;
   for (uint8_t register_idx = 0; register_idx < 16; register_idx++) {
-    if ((register_list & (1 << register_idx)) == 0) continue;
+    if ((register_list & (1 << register_idx)) != 0) {
+      register_count++;
+    }
+  }
 
+  // Calculate the addresses of the registers to be transferred.
+  uint32_t addresses[register_count];
+  for (uint8_t i = 0; i < register_count; i++) {
     if (is_pre_transfer) {
       // Pre-indexing
       base_address += offset;
     }
 
-    uint32_t value = ram_read_word(cpu.ram, base_address);
-    if (!pc_in_list && load_psr) {
-      // Load directly into User mode registers if S bit is set and PC is not in the list.
-      cpu.registers[register_idx] = value;
-    } else {
-      // Load to the appropriate register set.
-      cpu.set_register_value(register_idx, ram_read_word(cpu.ram, base_address));
-    }
-
-    if (load_psr && register_idx == PC) {
-      // Load the current modes SPSR to CSPR when S bit is set and PC is in the list.
-      cpu.cspr = cpu.mode_to_scspr[cpu.cspr & 0x1F];
-    }
+    addresses[i] = base_address;
 
     if (!is_pre_transfer) {
       // Post-indexing
@@ -1235,7 +1233,36 @@ void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t
     }
   }
 
-  if (write_back) {
+  // Transfer from memory to registers.
+  int addresses_left = register_count;
+  for (uint8_t register_idx = 0; register_idx < 16; register_idx++) {
+    if ((register_list & (1 << register_idx)) == 0) continue;
+
+    // If decrementing the address, the last address is read from first.
+    uint32_t address_idx = is_increment 
+      ? register_count - addresses_left
+      : addresses_left - 1;
+    uint32_t value = ram_read_word(cpu.ram, addresses[address_idx]);
+
+    // Consume pre-calculated address.
+    addresses_left--;
+
+    if (!pc_in_list && load_psr) {
+      // Load directly into User mode registers if S bit is set and PC is not in the list.
+      cpu.registers[register_idx] = value;
+    } else {
+      // Load to the appropriate register set.
+      cpu.set_register_value(register_idx, value);
+    }
+
+    if (load_psr && register_idx == PC) {
+      // Load the current modes SPSR to CSPR when S bit is set and PC is in the list.
+      cpu.cspr = cpu.mode_to_scspr[cpu.cspr & 0x1F];
+    }
+  }
+
+  // Only write back if requested and the base register is not in the list.
+  if (write_back && !base_in_list) {
     cpu.set_register_value(base_register, base_address);
   }
 
@@ -1245,7 +1272,8 @@ void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t
 
 void block_store(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t control_flags) {
   uint32_t base_address = cpu.get_register_value(base_register);
-  uint32_t offset = (control_flags & (1 << 2)) ? 4 : -4;
+  bool is_increment = control_flags & (1 << 2);
+  uint32_t offset = is_increment ? 4 : -4;
   bool is_pre_transfer = control_flags & (1 << 3);
   bool write_back = control_flags & 1;
   bool load_psr = control_flags & (1 << 1);
@@ -1255,29 +1283,55 @@ void block_store(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_
     throw std::runtime_error("Cannot use PC as base register");
   }
 
+  // Count registers to be transferred.
+  uint32_t register_count = 0;
   for (uint8_t register_idx = 0; register_idx < 16; register_idx++) {
-    if ((register_list & (1 << register_idx)) == 0) continue;
+    if ((register_list & (1 << register_idx)) != 0) {
+      register_count++;
+    }
+  }
 
+  // Calculate the addresses of the registers to be transferred.
+  uint32_t addresses[register_count];
+  for (uint8_t i = 0; i < register_count; i++) {
     if (is_pre_transfer) {
       // Pre-indexing
       base_address += offset;
     }
 
-    if (load_psr) {
-      // If S bit is set, load the User mode registers into the memory.
-      ram_write_word(cpu.ram, base_address, cpu.registers[register_idx]);
-    } else {
-      ram_write_word(cpu.ram, base_address, cpu.get_register_value(register_idx));
-    }
+    addresses[i] = base_address;
 
     if (!is_pre_transfer) {
       // Post-indexing
       base_address += offset;
     }
+  }
+
+  bool written_back = false;
+  int addresses_left = register_count; 
+  for (uint8_t register_idx = 0; register_idx < 16; register_idx++) {
+    if ((register_list & (1 << register_idx)) == 0) continue;
+
+    // If decrementing the address, the last address is read from first.
+    uint32_t address_idx = is_increment
+      ? register_count - addresses_left
+      : addresses_left - 1;
+    uint32_t address_to_write = addresses[address_idx];
+
+    // Consume pre-calculated address.
+    addresses_left--;
+
+    if (load_psr) {
+      // If S bit is set, load the User mode registers into the memory.
+      ram_write_word(cpu.ram, address_to_write, cpu.registers[register_idx]);
+    } else {
+      ram_write_word(cpu.ram, address_to_write, cpu.get_register_value(register_idx));
+    }
 
     // Make sure write back occurs after the first register is stored.
-    if (write_back) {
+    if (write_back && !written_back) {
       cpu.set_register_value(base_register, base_address);
+      written_back = true;
     }
   }
 
@@ -1350,11 +1404,15 @@ void software_interrupt(CPU& cpu) {
   uint32_t current_pc = cpu.get_register_value(PC);
   uint32_t current_cspr = cpu.cspr;
 
+  // Fetch the instruction size before switching to Supervisor mode.
+  uint32_t instruction_size = cpu.get_instruction_size();
+
   // Switch to Supervisor mode & back to ARM state.
   cpu.cspr = Supervisor;
 
   // Save the current PC to LR, and CSPR to SPSR_svc
-  cpu.set_register_value(LR, current_pc);
+  // Make sure to increment the LR to the next instruction after the SWI.
+  cpu.set_register_value(LR, current_pc + instruction_size);
   cpu.mode_to_scspr[Supervisor] = current_cspr;
 
   // Set the PC to the SWI vector
@@ -2179,13 +2237,21 @@ void execute_arm_instruction(CPU& cpu, uint32_t instruction) {
   }
 
   // Check if the instruction is a halfword data transfer immediate
-  if ((opcode & ARM_HALFWORD_DATA_TRANSFER_IMMEDIATE_OPCODE) == ARM_HALFWORD_DATA_TRANSFER_IMMEDIATE_OPCODE && (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) > 0) {
+  if (
+    (opcode & ARM_HALFWORD_DATA_TRANSFER_IMMEDIATE_OPCODE) == ARM_HALFWORD_DATA_TRANSFER_IMMEDIATE_OPCODE &&
+    (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) > 0 &&
+    (opcode & (7 << 25)) == 0 // 3 bits at 25, 26, 27 are 0
+  ) {
     decode_half_word_load_and_store(cpu, opcode);
     return;
   }
 
   // Check if the instruction is a halfword data transfer register
-  if ((opcode & ARM_HALFWORD_DATA_TRANSFER_REGISTER_OPCODE) == ARM_HALFWORD_DATA_TRANSFER_REGISTER_OPCODE && (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) > 0) {
+  if (
+    (opcode & ARM_HALFWORD_DATA_TRANSFER_REGISTER_OPCODE) == ARM_HALFWORD_DATA_TRANSFER_REGISTER_OPCODE && 
+    (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) > 0 &&
+    (opcode & (7 << 25)) == 0 // 3 bits at 25, 26, 27 are 0
+  ) {
     decode_half_word_load_and_store(cpu, opcode);
     return;
   }
@@ -2196,17 +2262,28 @@ void execute_arm_instruction(CPU& cpu, uint32_t instruction) {
     return;
   }
 
-  if ((opcode & ARM_SINGLE_DATA_SWAP_OPCODE) == ARM_SINGLE_DATA_SWAP_OPCODE) {
+  if (
+    (opcode & ARM_SINGLE_DATA_SWAP_OPCODE) == ARM_SINGLE_DATA_SWAP_OPCODE &&
+    (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) == 0
+  ) {
     decode_single_data_swap(cpu, opcode);
     return;
   }
 
-  if ((opcode & ARM_MULTIPLY_LONG_OPCODE) == ARM_MULTIPLY_LONG_OPCODE && (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) == 0) {
+  if (
+    (opcode & ARM_MULTIPLY_LONG_OPCODE) == ARM_MULTIPLY_LONG_OPCODE &&
+    (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) == 0 &&
+    (opcode & (0xF << 24)) == 0
+  ) {
     decode_multiply_long(cpu, opcode);
     return;
   }
 
-  if ((opcode & ARM_MULTIPLY_OPCODE) == ARM_MULTIPLY_OPCODE && (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) == 0) {
+  if (
+    (opcode & ARM_MULTIPLY_OPCODE) == ARM_MULTIPLY_OPCODE && 
+    (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) == 0 &&
+    (opcode & (0x3F << 22)) == 0
+  ) {
     decode_multiply(cpu, opcode);
     return;
   }

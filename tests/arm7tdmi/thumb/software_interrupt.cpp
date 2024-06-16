@@ -12,7 +12,7 @@ TEST_CASE("Software Interrupt", "[thumb, software-interrupt]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/software_interrupt.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cspr = (uint32_t)System | CSPR_THUMB_STATE;
 
   SECTION("SWI") {
     cpu.set_register_value(PC, 0x0);
@@ -20,8 +20,9 @@ TEST_CASE("Software Interrupt", "[thumb, software-interrupt]") {
     // swi 18
     cpu_cycle(cpu);
 
-    REQUIRE(cpu.registers[PC] == 0x8);
+    REQUIRE(cpu.get_register_value(PC) == 0x8);
+    REQUIRE(cpu.get_register_value(LR) == 0x2);
     REQUIRE(cpu.cspr == (uint32_t)Supervisor);
-    REQUIRE(cpu.mode_to_scspr[Supervisor] == ((uint32_t)User | CSPR_THUMB_STATE));
+    REQUIRE(cpu.mode_to_scspr[Supervisor] == ((uint32_t)System | CSPR_THUMB_STATE));
   }
 }
