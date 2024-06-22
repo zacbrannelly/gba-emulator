@@ -22,13 +22,13 @@ void branch_and_exchange(uint8_t register_number, CPU& cpu) {
 
   if (address & 0x1) {
     // Set the T bit (5th bit, State Bit) in the CPSR
-    cpu.cspr |= 0x20;
+    cpu.cspr |= CSPR_THUMB_STATE;
 
     // Make sure the last bit is 0 (2-byte aligned)
     cpu.set_register_value(PC, address & ~0x1);
   } else {
     // Reset the T bit (5th bit, State Bit) in the CPSR
-    cpu.cspr &= ~0x20;
+    cpu.cspr &= ~CSPR_THUMB_STATE;
 
     // Make sure the last two bits are 0 (4-byte aligned)
     cpu_arm_write_pc(cpu, address);
@@ -888,7 +888,7 @@ void decode_multiply_long(CPU& cpu, uint32_t opcode) {
   }
 
   // Increment the PC to the next instruction
-  cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  cpu.increment_pc();
 }
 
 // =================================================================================================
@@ -948,7 +948,7 @@ void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t
   }
 
   // Increment the PC to the next instruction
-  if (increment_pc) cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
+  if (increment_pc) cpu.increment_pc();
 }
 
 void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint16_t offset, uint8_t control_flags, bool increment_pc = true) {
@@ -959,6 +959,11 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
   if (base_register == PC) {
     // If PC is the base register, it should be 8 bytes ahead.
     base_address += 2 * cpu.get_instruction_size();
+
+    if (cpu.cspr & CSPR_THUMB_STATE) {
+      // Make sure the address is word aligned.
+      base_address &= ~3;
+    }
   }
 
   if (control_flags & REGISTER_OFFSET) {
@@ -1408,7 +1413,8 @@ void software_interrupt(CPU& cpu) {
   uint32_t instruction_size = cpu.get_instruction_size();
 
   // Switch to Supervisor mode & back to ARM state.
-  cpu.cspr = Supervisor;
+  cpu.cspr = (cpu.cspr & ~CSPR_MODE_MASK) | Supervisor;
+  cpu.cspr &= ~CSPR_THUMB_STATE;
 
   // Save the current PC to LR, and CSPR to SPSR_svc
   // Make sure to increment the LR to the next instruction after the SWI.
@@ -1515,7 +1521,7 @@ void decode_thumb_mov_cmp_add_sub_immediate(CPU& cpu, uint16_t instruction) {
       break;
     case 1:
       // cmp destination_register, #offset
-      arm_instruction = ARM_CMP_IMMEDIATE_OPCODE | input_component;
+      arm_instruction = ARM_CMP_IMMEDIATE_OPCODE | (destination_register << 16) | input_component;
       break;
     case 2:
       // adds destination_register, destination_register, #offset
@@ -2033,8 +2039,9 @@ void decode_thumb_long_branch_with_link(CPU& cpu, uint16_t instruction) {
   uint16_t offset = (instruction & 0x7FF); // Last 11 bits
   if (!is_low_offset) {
     // LR := PC + OffsetHigh << 12
+    int32_t offset_sign_extended = (offset & (1 << 10)) ? (offset | 0xFFFFF800) : offset;
     uint32_t pc = cpu.get_register_value(PC) + 2 * cpu.get_instruction_size();
-    cpu.set_register_value(LR, pc + (offset << 12));
+    cpu.set_register_value(LR, pc + (offset_sign_extended << 12));
 
     // Increment the PC.
     cpu.increment_pc();

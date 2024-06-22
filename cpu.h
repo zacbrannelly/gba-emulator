@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdint>
 #include <vector>
 #include <map>
@@ -95,6 +97,7 @@ static constexpr uint32_t CSPR_V = 1 << 28;
 static constexpr uint32_t CSPR_IRQ_DISABLE = 1 << 7;
 static constexpr uint32_t CSPR_FIQ_DISABLE = 1 << 6;
 static constexpr uint32_t CSPR_THUMB_STATE = 1 << 5;
+static constexpr uint32_t CSPR_MODE_MASK = 0x1F;
 
 enum SpecialRegisters {
   SP = 13, // Stack Pointer
@@ -132,6 +135,8 @@ enum DataProcessingOpcodes {
 // Used in the GameBoy Advance (SP)
 // Manual: https://www.dwedit.org/files/ARM7TDMI.pdf
 struct CPU {
+  uint64_t cycle_count = 0;
+
   // Memory Mapper
   RAM ram;
 
