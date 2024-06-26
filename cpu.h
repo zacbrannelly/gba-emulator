@@ -249,3 +249,4 @@ struct CPU {
 
 void cpu_init(CPU& cpu);
 void cpu_cycle(CPU& cpu);
+void cpu_trigger_irq_interrupt(CPU& cpu);

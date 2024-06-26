@@ -5,12 +5,19 @@
 
 #include "debug.h"
 #include "cpu.h"
+#include "dma.h"
 
 void cycle(CPU& cpu) {
+  // Cycle the CPU.
   std::cout << "Instruction Count: " << std::dec << cpu.cycle_count++ << std::endl;
-  std::cout << "PC: " << std::hex << cpu.get_register_value(PC) << std::endl;
   cpu_cycle(cpu);
+  
+  // Print the CPU State for debugging.
+  // TODO: Disable with a flag.
   debug_print_cpu_state(cpu);
+
+  // Cycle the DMA controller.
+  dma_cycle(cpu);
 }
 
 uint32_t parse_hex_to_int(std::string& hex) {
@@ -53,7 +60,7 @@ void emulator_loop(CPU& cpu) {
     // Press Enter to continue.
     std::string input;
     std::getline(std::cin, input);
-    
+
     if (input == "q") {
       break;
     } else if (input.size() > 0 && input.at(0) == 's') {

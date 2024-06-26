@@ -71,7 +71,8 @@ TEST_CASE("Data Processing", "[arm, data-processing]") {
     cpu_cycle(cpu);
 
     // PC should be set to LR and mode should be restored.
-    REQUIRE(cpu.get_register_value(PC) == 0x5);
+    // PC should be set to 0x4 because the instruction should ensure the PC is at least 2 bytes aligned.
+    REQUIRE(cpu.get_register_value(PC) == 0x4);
     REQUIRE(cpu.cspr == (uint32_t)User);
   }
 

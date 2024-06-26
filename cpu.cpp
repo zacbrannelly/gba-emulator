@@ -577,6 +577,9 @@ void register_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, ui
   if (destination_register != PC) {
     // Revert the prefetching offset and set the PC to the next instruction.
     cpu.set_register_value(PC, cpu.get_register_value(PC) - (shift_is_register ? 2 * instruction_size : instruction_size));
+  } else {
+    // Make sure the final value of the PC is 2-byte aligned at least.
+    cpu.set_register_value(PC, cpu.get_register_value(PC) & ~0x1);
   }
 }
 
@@ -597,6 +600,9 @@ void immediate_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, u
   if (destination_register != PC) {
     // Revert the prefetching offset and set the PC to the next instruction.
     cpu.set_register_value(PC, cpu.get_register_value(PC) - instruction_size);
+  } else {
+    // Make sure the final value of the PC is 2-byte aligned at least.
+    cpu.set_register_value(PC, cpu.get_register_value(PC) & ~0x1);
   }
 }
 
@@ -2330,4 +2336,45 @@ void cpu_cycle(CPU& cpu) {
     // Decode the ARM instruction and execute it
     execute_arm_instruction(cpu, instruction);
   }
+
+  // IRQ has been triggered externally.
+  uint32_t interrupt_flag = ram_read_word(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS);
+  if (interrupt_flag > 0) {
+    // Check CPSR to see if IRQs are disabled
+    if ((cpu.cspr & CSPR_IRQ_DISABLE) > 0) return;
+
+    // Check IME to see if interrupts are enabled
+    if (!ram_read_word(cpu.ram, REG_INTERRUPT_MASTER_ENABLE)) return;
+
+    // Check if requested interrupt is enabled
+    uint32_t interrupt_enable = ram_read_word(cpu.ram, REG_INTERRUPT_ENABLE);
+    if ((interrupt_flag & interrupt_enable) == 0) return;
+
+    // Trigger the IRQ interrupt
+    cpu_trigger_irq_interrupt(cpu);
+  }
+}
+
+void cpu_trigger_irq_interrupt(CPU& cpu) {
+  // Backup the current PC and CPSR
+  uint32_t current_pc = cpu.get_register_value(PC);
+  uint32_t current_cspr = cpu.cspr;
+
+  // Fetch the instruction size before switching to Supervisor mode.
+  uint32_t instruction_size = cpu.get_instruction_size();
+
+  // Switch to IRQ mode & back to ARM state.
+  cpu.cspr = (cpu.cspr & ~CSPR_MODE_MASK) | IRQ;
+  cpu.cspr &= ~CSPR_THUMB_STATE;
+
+  // Disable further interrupts
+  cpu.cspr |= CSPR_IRQ_DISABLE;
+
+  // Save the current PC to LR, and CSPR to SPSR_irq
+  // Make sure to increment the LR to the next instruction.
+  cpu.set_register_value(LR, current_pc + instruction_size);
+  cpu.mode_to_scspr[IRQ] = current_cspr;
+
+  // Set the PC to the IRQ vector
+  cpu.set_register_value(PC, 0x18);
 }

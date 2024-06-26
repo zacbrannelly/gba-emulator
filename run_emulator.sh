@@ -12,6 +12,7 @@ g++ -o ./bin/emulator \
   cpu.cpp \
   ram.cpp \
   emulator.cpp \
+  dma.cpp \
   -I./3rdparty \
   -I./ \
   -std=c++20

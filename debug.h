@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <sstream>
 #include <cpu.h>
 
 inline void debug_print_cpu_state(CPU& cpu) {

@@ -15,11 +15,11 @@ struct RAM {
   // 0x00000000 - 0x00003FFF
   uint8_t* system_rom = new uint8_t[0x4000];
 
-  // EWRAM - External Working RAM (256kb)
+  // EWRAM - External Working RAM (256kb) - Mirrored
   // 0x02000000 - 0x0203FFFF
   uint8_t* external_working_ram = new uint8_t[0x40000];
 
-  // IWRAM - Internal Working RAM (32kb)
+  // IWRAM - Internal Working RAM (32kb) - Mirrored
   // 0x03000000 - 0x03007FFF
   uint8_t* internal_working_ram = new uint8_t[0x8000];
 
@@ -27,19 +27,19 @@ struct RAM {
   // 0x04000000 - 0x040003FE (but seems to be used beyond 0x04000400)
   uint8_t* io_registers = new uint8_t[0x804];
 
-  // BG/OBJ Palette RAM (1kb)
+  // BG/OBJ Palette RAM (1kb) - Mirrored
   // 0x05000000 - 0x050003FF
   uint8_t* palette_ram = new uint8_t[0x400];
 
-  // VRAM - Video RAM (96kb)
+  // VRAM - Video RAM (96kb) - TODO: Mirror depending on mode
   // 0x06000000 - 0x06017FFF
   uint8_t* video_ram = new uint8_t[0x18000];
 
-  // OAM - Object Attribute Memory (1kb)
+  // OAM - Object Attribute Memory (1kb) - Mirror
   // 0x07000000 - 0x070003FF
   uint8_t* object_attribute_memory = new uint8_t[0x400];
 
-  // Game Pak ROM/FlashROM (max 32MB) - Wait State 0
+  // Game Pak ROM/FlashROM (max 32MB) - Mirrored (0x08000000, 0x0A000000, 0x0C000000)
   // 0x08000000 - 0x09FFFFFF
   uint8_t* game_pak_rom = new uint8_t[0x2000000];
 
@@ -63,6 +63,12 @@ struct RAM {
     {OAM_START,                  0x400},
     {GAME_PAK_ROM_START,         0x2000000}
   };
+  std::map<uint32_t, uint32_t> memory_mirror_interval = {
+    {WORKING_RAM_ON_BOARD_START, 0x40000},
+    {WORKING_RAM_ON_CHIP_START,  0x8000},
+    {PALETTE_RAM_START,          0x400},
+    {GAME_PAK_ROM_START,         0x2000000}
+  };
 };
 
 void ram_load_rom(RAM& ram, std::string const& path);
@@ -83,11 +89,25 @@ static inline uint32_t swap32(uint32_t v)
 inline uint8_t* resolve_address(RAM& ram, uint32_t address) {
   uint32_t memory_loc = address & MEMORY_MASK;
   uint32_t offset = address & MEMORY_NOT_MASK;
+
+  // Check if we're able to map the memory location.
   if (ram.memory_map.find(memory_loc) == ram.memory_map.end()) {
     std::stringstream ss;
     ss << "Error: Invalid memory location 0x" << std::hex << address;
     throw std::runtime_error("Error: Invalid memory location " + ss.str());
   }
+
+  // Check if the memory location is mirrored.
+  uint32_t max_memory_size = ram.memory_size[memory_loc];
+  if (
+    ram.memory_mirror_interval.find(memory_loc) != ram.memory_mirror_interval.end() &&
+    offset >= ram.memory_mirror_interval[memory_loc]
+  ) {
+    // Adjust the offset to the mirrored memory location.
+    offset %= ram.memory_mirror_interval[memory_loc];
+  }
+
+  // Check if the offset is within the memory bounds.
   if (offset >= ram.memory_size[memory_loc]) {
     std::stringstream ss;
     ss << "Error: Out of bounds memory access 0x" << std::hex << address;
@@ -122,13 +142,46 @@ inline int32_t ram_read_word_signed(RAM& ram, uint32_t address) {
 }
 
 inline void ram_write_byte(RAM& ram, uint32_t address, uint8_t value) {
+  auto ptr = resolve_address(ram, address);
+  if (address == REG_INTERRUPT_REQUEST_FLAGS) {
+    // Clear-on-write for interrupt flags.
+    *ptr &= ~value;
+  } else {
+    *ptr = value;
+  }
+}
+
+// Direct write access without clear-on-write checks (for interrupt flags).
+inline void ram_write_byte_direct(RAM& ram, uint32_t address, uint8_t value) {
   *resolve_address(ram, address) = value;
 }
 
 inline void ram_write_half_word(RAM& ram, uint32_t address, uint16_t value) {
+  auto ptr = (uint16_t*)resolve_address(ram, address);
+  if (address == REG_INTERRUPT_REQUEST_FLAGS) {
+    // Clear-on-write for interrupt flags.
+    *ptr &= ~value;
+  } else {
+    *ptr = value;
+  }
+}
+
+// Direct write access without clear-on-write checks (for interrupt flags).
+inline void ram_write_half_word_direct(RAM& ram, uint32_t address, uint32_t value) {
   *(uint16_t*)resolve_address(ram, address) = value;
 }
 
 inline void ram_write_word(RAM& ram, uint32_t address, uint32_t value) {
+  auto ptr = (uint32_t*)resolve_address(ram, address);
+  if (address == REG_INTERRUPT_REQUEST_FLAGS) {
+    // Clear-on-write for interrupt flags.
+    *ptr &= ~value;
+  } else {
+    *ptr = value;
+  }
+}
+
+// Direct write access without clear-on-write checks (for interrupt flags).
+inline void ram_write_word_direct(RAM& ram, uint32_t address, uint32_t value) {
   *(uint32_t*)resolve_address(ram, address) = value;
 }
