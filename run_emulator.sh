@@ -8,14 +8,16 @@ mkdir -p ./bin
 
 # Build the test runner
 echo "Building..."
-g++ -o ./bin/emulator \
+g++ -O3 -o ./bin/emulator \
   cpu.cpp \
   ram.cpp \
   emulator.cpp \
   dma.cpp \
+  timer.cpp \
+  gpu.cpp \
   -I./3rdparty \
   -I./ \
-  -std=c++20
+  -std=c++20 \
 
 # Run the emulator
 echo "Running..."

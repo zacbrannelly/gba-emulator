@@ -13,6 +13,8 @@ g++ -o ./bin/emulator \
   ram.cpp \
   emulator.cpp \
   dma.cpp \
+  timer.cpp \
+  gpu.cpp \
   -I./3rdparty \
   -I./ \
   -std=c++20 \

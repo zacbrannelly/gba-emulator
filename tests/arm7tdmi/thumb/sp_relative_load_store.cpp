@@ -7,7 +7,8 @@ TEST_CASE("SP-Relative Load/Store", "[thumb, sp-relative-load-store]") {
   REQUIRE_NOTHROW(cpu_init(cpu));
 
   // Map the GamePak ROM to 0x0 for these unit tests.
-  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+  cpu.ram.load_rom_into_bios = true;
+  cpu.ram.enable_rom_write_protection = false;
 
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/sp_relative_load_store.bin"));
 

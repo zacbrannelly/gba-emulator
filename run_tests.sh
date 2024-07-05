@@ -17,6 +17,8 @@ g++ -o ./tests/bin/test_runner \
   cpu.cpp \
   ram.cpp \
   dma.cpp \
+  timer.cpp \
+  gpu.cpp \
   -I./3rdparty \
   -I./ \
   -std=c++20

@@ -11,7 +11,8 @@ TEST_CASE("Push / Pop from Stack", "[arm, push-pop]") {
   cpu.set_register_value(SP, 0x3007F00);
 
   // Map the GamePak ROM to 0x0 for these unit tests.
-  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+  cpu.ram.load_rom_into_bios = true;
+  cpu.ram.enable_rom_write_protection = false;
 
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_push_pop.bin"));
 

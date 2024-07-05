@@ -11,10 +11,21 @@
   static constexpr uint32_t DMA##x##CNT_L = DMAxCNT_L(x); \
   static constexpr uint32_t DMA##x##CNT_H = DMAxCNT_H(x);
 
+#define DEFINE_DMA_CHANNEL_OFFSETS(x) \
+  static constexpr uint32_t DMA_OFFSET##x##SAD = DMAxSAD(x) - 0x4000000; \
+  static constexpr uint32_t DMA_OFFSET##x##DAD = DMAxDAD(x) - 0x4000000; \
+  static constexpr uint32_t DMA_OFFSET##x##CNT_L = DMAxCNT_L(x) - 0x4000000; \
+  static constexpr uint32_t DMA_OFFSET##x##CNT_H = DMAxCNT_H(x) - 0x4000000;
+
 DEFINE_DMA_CHANNEL(0)
 DEFINE_DMA_CHANNEL(1)
 DEFINE_DMA_CHANNEL(2)
 DEFINE_DMA_CHANNEL(3)
+
+DEFINE_DMA_CHANNEL_OFFSETS(0)
+DEFINE_DMA_CHANNEL_OFFSETS(1)
+DEFINE_DMA_CHANNEL_OFFSETS(2)
+DEFINE_DMA_CHANNEL_OFFSETS(3)
 
 static constexpr std::array<uint32_t, 4> DMA_SAD = {
   DMA0SAD,
@@ -37,11 +48,39 @@ static constexpr std::array<uint32_t, 4> DMA_CNT_L = {
   DMA3CNT_L
 };
 
-static constexpr std::array<uint32_t, 4> DMA_CNT_H = {
+static constexpr uint32_t DMA_CNT_H[4] = {
   DMA0CNT_H,
   DMA1CNT_H,
   DMA2CNT_H,
   DMA3CNT_H
+};
+
+static constexpr uint32_t DMA_OFFSET_SAD[4] = {
+  DMA_OFFSET0SAD,
+  DMA_OFFSET1SAD,
+  DMA_OFFSET2SAD,
+  DMA_OFFSET3SAD
+};
+
+static constexpr uint32_t DMA_OFFSET_DAD[4] = {
+  DMA_OFFSET0DAD,
+  DMA_OFFSET1DAD,
+  DMA_OFFSET2DAD,
+  DMA_OFFSET3DAD
+};
+
+static constexpr uint32_t DMA_OFFSET_CNT_L[4] = {
+  DMA_OFFSET0CNT_L,
+  DMA_OFFSET1CNT_L,
+  DMA_OFFSET2CNT_L,
+  DMA_OFFSET3CNT_L
+};
+
+static constexpr uint32_t DMA_OFFSET_CNT_H[4] = {
+  DMA_OFFSET0CNT_H,
+  DMA_OFFSET1CNT_H,
+  DMA_OFFSET2CNT_H,
+  DMA_OFFSET3CNT_H
 };
 
 static constexpr uint16_t DMA_CNT_L_ENABLE_FLAG = 1 << 15;
@@ -90,23 +129,31 @@ void dma_transfer(CPU& cpu, uint32_t source_addr, uint32_t dest_addr, DMATransfe
 }
 
 bool dma_process_channel(CPU& cpu, uint8_t channel) {
-  uint32_t source_addr = ram_read_word(cpu.ram, DMA_SAD[channel]);
-  uint32_t dest_addr = ram_read_word(cpu.ram, DMA_DAD[channel]);
-  uint32_t word_count = ram_read_half_word(cpu.ram, DMA_CNT_L[channel]);
-  uint32_t control = ram_read_half_word(cpu.ram, DMA_CNT_H[channel]);
+  uint32_t source_addr = *(uint32_t*)&cpu.ram.io_registers[DMA_OFFSET_SAD[channel]];
+  uint32_t dest_addr = *(uint32_t*)&cpu.ram.io_registers[DMA_OFFSET_DAD[channel]];
+  uint16_t word_count = *(uint16_t*)&cpu.ram.io_registers[DMA_OFFSET_CNT_L[channel]];
+  uint16_t control = *(uint16_t*)&cpu.ram.io_registers[DMA_OFFSET_CNT_H[channel]];
 
   auto const dest_control = (DMADestinationAddressControl)((control >> 5) & 0x3);
   auto const source_control = (DMASourceAddressControl)((control >> 7) & 0x3);
 
   bool const is_repeat = (control >> 9) & 0x1;
   auto const transfer_type = (DMATransferType)((control >> 10) & 0x1);
-  auto const start_mode = (DMAStartMode)((control >> 11) & 0x3);
-  bool const irq_enable = (control >> 13) & 0x1;
+  auto const start_mode = (DMAStartMode)((control >> 12) & 0x3);
+  bool const irq_enable = (control >> 14) & 0x1;
   bool const enable = (control >> 15) & 0x1;
 
   if (!enable) {
     return false;
   }
+
+  // std::cout << "DMA channel " << (int)channel << " transfer" << std::endl;
+  // std::cout << "  Source Address: 0x" << std::hex << source_addr << std::endl;
+  // std::cout << "  Destination Address: 0x" << std::hex << dest_addr << std::endl;
+  // std::cout << "  Word Count: " << std::dec << word_count << std::endl;
+  // std::cout << "  Start Mode: " << (int)start_mode << std::endl;
+  // std::cout << "  Repeat: " << is_repeat << std::endl;
+  // std::cout << "  Control: 0x" << std::hex << control << std::endl;
 
   if (start_mode == StartModeVBlank) {
     uint16_t display_status = ram_read_half_word(cpu.ram, REG_LCD_STATUS);
@@ -125,7 +172,13 @@ bool dma_process_channel(CPU& cpu, uint8_t channel) {
 
   uint32_t transfer_size = transfer_type == TransferTypeHalfWord ? 2 : 4;
 
-  for (int i = 0; i < word_count; i++) {
+  // If the word count is 0, transfer 0x10000 words for channel 3 and 0x4000 words for other channels.
+  uint32_t final_word_count = (uint32_t)word_count;
+  if (word_count == 0) {
+    final_word_count = channel == 3 ? 0x10000 : 0x4000;
+  }
+
+  for (int i = 0; i < final_word_count; i++) {
     dma_transfer(cpu, source_addr, dest_addr, transfer_type);
 
     switch (dest_control) {
@@ -156,7 +209,7 @@ bool dma_process_channel(CPU& cpu, uint8_t channel) {
     }
 
     // Update the word count.
-    ram_write_half_word(cpu.ram, DMA_CNT_L[channel], word_count - i - 1);
+    ram_write_half_word(cpu.ram, DMA_CNT_L[channel], final_word_count - i - 1);
   }
 
   if (is_repeat) {
@@ -169,9 +222,9 @@ bool dma_process_channel(CPU& cpu, uint8_t channel) {
 
   // Generate an interrupt if enabled.
   if (irq_enable) {
-    uint32_t interrupt_flags = ram_read_word(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS);
+    uint16_t interrupt_flags = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
     interrupt_flags |= (1 << (8 + channel));
-    ram_write_word_direct(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS, interrupt_flags);
+    ram_write_half_word_direct(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS, interrupt_flags);
   }
 
   return true;

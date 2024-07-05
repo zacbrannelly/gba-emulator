@@ -7,8 +7,8 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
   REQUIRE_NOTHROW(cpu_init(cpu));
 
   // Map the GamePak ROM to 0x0 for these unit tests.
-  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
-
+  cpu.ram.load_rom_into_bios = true;
+  cpu.ram.enable_rom_write_protection = false;
 
   SECTION("LDM") {
     REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_block_data_transfer.bin"));

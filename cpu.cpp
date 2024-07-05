@@ -1010,7 +1010,7 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
   }
 
   // Increment the PC to the next instruction
-  if (increment_pc) cpu.increment_pc();
+  if (increment_pc && destination_register != PC) cpu.increment_pc();
 }
 
 enum OffsetMode {
@@ -1056,7 +1056,8 @@ void load_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t destinat
   bool word_aligned = (base_address & 3) == 0;
   bool halfword_aligned = (base_address & 1) == 0;
 
-  if (!word_aligned && !halfword_aligned) {
+  // Skip this check for signed byte, they can be unaligned.
+  if (is_halfword && !word_aligned && !halfword_aligned) {
     throw std::runtime_error("Unaligned memory access :(");
   }
 
@@ -1263,7 +1264,12 @@ void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t
       cpu.registers[register_idx] = value;
     } else {
       // Load to the appropriate register set.
-      cpu.set_register_value(register_idx, value);
+      if (register_idx != PC) {
+        cpu.set_register_value(register_idx, value);
+      } else {
+        // Make sure the PC is 2-byte aligned.
+        cpu.set_register_value(register_idx, value & ~1);
+      }
     }
 
     if (load_psr && register_idx == PC) {
@@ -1850,7 +1856,10 @@ void decode_thumb_load_store_halfword(CPU& cpu, uint16_t instruction) {
   uint8_t base_register = (instruction >> 3) & 0x7; // Next 3 bits
   uint8_t offset = ((instruction >> 6) & 0x1F) << 1; // Next 5 bits, shifted by 1 to make it a 6-bit value
   bool is_load = instruction & (1 << 11);
-  uint32_t input_component = (destination_register << 12) | (base_register << 16) | offset;
+
+  // 8-bit immediate offset is split into two 4-bit values, separated by 4 bits.
+  uint16_t split_offset = (offset & 0xF0) << 4 | (offset & 0x0F);
+  uint32_t input_component = (destination_register << 12) | (base_register << 16) | split_offset;
 
   uint32_t arm_instruction = 0;
   if (is_load) {
@@ -2075,6 +2084,9 @@ void cpu_reset(CPU& cpu) {
 }
 
 void cpu_init(CPU& cpu) {
+  // Init the RAM
+  ram_init(cpu.ram);
+
   // TODO: Some refactoring and we might be able to remove this.
   prepare_data_processing(cpu);
 
@@ -2336,18 +2348,21 @@ void cpu_cycle(CPU& cpu) {
     // Decode the ARM instruction and execute it
     execute_arm_instruction(cpu, instruction);
   }
+}
 
+void cpu_interrupt_cycle(CPU& cpu) {
   // IRQ has been triggered externally.
-  uint32_t interrupt_flag = ram_read_word(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS);
+  uint32_t interrupt_flag = ram_read_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
   if (interrupt_flag > 0) {
     // Check CPSR to see if IRQs are disabled
     if ((cpu.cspr & CSPR_IRQ_DISABLE) > 0) return;
 
     // Check IME to see if interrupts are enabled
-    if (!ram_read_word(cpu.ram, REG_INTERRUPT_MASTER_ENABLE)) return;
+    uint32_t interrupt_master_enable = ram_read_word_from_io_registers_fast<REG_INTERRUPT_MASTER_ENABLE>(cpu.ram);
+    if (interrupt_master_enable > 0) return;
 
     // Check if requested interrupt is enabled
-    uint32_t interrupt_enable = ram_read_word(cpu.ram, REG_INTERRUPT_ENABLE);
+    uint32_t interrupt_enable = ram_read_word_from_io_registers_fast<REG_INTERRUPT_ENABLE>(cpu.ram);
     if ((interrupt_flag & interrupt_enable) == 0) return;
 
     // Trigger the IRQ interrupt

@@ -162,7 +162,7 @@ struct CPU {
     {0, 0, 0, 0, 0, 0, 0}, // Abort
     {0, 0, 0, 0, 0, 0, 0}  // Undefined
   };
-  std::map<uint8_t, uint32_t> mode_to_banked_registers = {
+  std::unordered_map<uint8_t, uint32_t> mode_to_banked_registers = {
     {FIQ, 0},
     {IRQ, 1},
     {Supervisor, 2},
@@ -181,7 +181,7 @@ struct CPU {
   // Bit 5 - State bit (Tbit, 0 = ARM, 1 = THUMB)
   // Bit 4-0 - Mode bits (5 bits, see CPUOperatingMode)
   uint32_t cspr = (uint32_t)System | CSPR_FIQ_DISABLE;
-  std::map<uint8_t, uint32_t> mode_to_scspr = {
+  std::unordered_map<uint8_t, uint32_t> mode_to_scspr = {
     {FIQ, 0},
     {IRQ, 0},
     {Supervisor, 0},
@@ -190,7 +190,7 @@ struct CPU {
   };
 
   // ARM Data Processing Instruction Handlers
-  std::map<uint32_t, std::vector<std::function<void(CPU&, uint8_t, uint8_t, uint16_t, uint8_t)>>> arm_data_processing_instructions;
+  std::unordered_map<uint32_t, std::vector<std::function<void(CPU&, uint8_t, uint8_t, uint16_t, uint8_t)>>> arm_data_processing_instructions;
 
   // Possible Conditions
   std::vector<uint32_t> conditions = {
@@ -249,4 +249,5 @@ struct CPU {
 
 void cpu_init(CPU& cpu);
 void cpu_cycle(CPU& cpu);
+void cpu_interrupt_cycle(CPU& cpu);
 void cpu_trigger_irq_interrupt(CPU& cpu);

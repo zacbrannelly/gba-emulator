@@ -7,7 +7,8 @@ TEST_CASE("Load/Store Unsigned/Signed Byte/Halfword", "[thumb, load-store-signed
   REQUIRE_NOTHROW(cpu_init(cpu));
 
   // Map the GamePak ROM to 0x0 for these unit tests.
-  cpu.ram.memory_map[0] = cpu.ram.game_pak_rom;
+  cpu.ram.load_rom_into_bios = true;
+  cpu.ram.enable_rom_write_protection = false;
 
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/load_store_signed_halfword.bin"));
 
