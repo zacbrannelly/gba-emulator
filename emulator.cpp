@@ -108,6 +108,17 @@ void emulator_loop(CPU& cpu, Timer& timer) {
       while (cpu.get_register_value(PC) != addr) {
         cycle(cpu, timer);
       }
+    } else if (input.size() > 0 && input.at(0) == 'v') {
+      uint8_t scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
+      bool hit_vcount = false;
+      while (scanline != 160) {
+        cycle(cpu, timer);
+        scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
+      }
+      while (scanline == 160) {
+        cycle(cpu, timer);
+        scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
+      }
     }
   }
 }

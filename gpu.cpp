@@ -59,7 +59,7 @@ void gpu_complete_scanline(CPU& cpu) {
   ram_write_byte(cpu.ram, REG_VERTICAL_COUNT, scanline);
 
   if (scanline == 0) {
-    // print_screen_state(cpu);
+    print_screen_state(cpu);
   }
 }
 

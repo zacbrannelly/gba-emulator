@@ -1,24 +1,17 @@
 #!/bin/bash
+set -e  # Exit immediately if a command exits with a non-zero status
 
-# Stop execution if a command fails
-set -e
+# Set build directory
+BUILD_DIR="build"
 
-# Make the bin directory if it doesn't exist
-mkdir -p ./bin
+# Create build directory if it doesn't exist
+mkdir -p $BUILD_DIR
 
-# Build the test runner
-echo "Building..."
-g++ -O3 -o ./bin/emulator \
-  cpu.cpp \
-  ram.cpp \
-  emulator.cpp \
-  dma.cpp \
-  timer.cpp \
-  gpu.cpp \
-  -I./3rdparty \
-  -I./ \
-  -std=c++20 \
+# Configure CMake without tests
+cmake -DBUILD_TESTS=OFF -S . -B $BUILD_DIR
+
+# Build the emulator
+cmake --build $BUILD_DIR --target emulator -j 12
 
 # Run the emulator
-echo "Running..."
-./bin/emulator
+$BUILD_DIR/emulator

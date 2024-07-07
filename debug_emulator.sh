@@ -1,25 +1,17 @@
 #!/bin/bash
+set -e  # Exit immediately if a command exits with a non-zero status
 
-# Stop execution if a command fails
-set -e
+# Set build directory
+BUILD_DIR="build_debug"
 
-# Make the bin directory if it doesn't exist
-mkdir -p ./bin
+# Create build directory if it doesn't exist
+mkdir -p $BUILD_DIR
 
-# Build the test runner
-echo "Building..."
-g++ -o ./bin/emulator \
-  cpu.cpp \
-  ram.cpp \
-  emulator.cpp \
-  dma.cpp \
-  timer.cpp \
-  gpu.cpp \
-  -I./3rdparty \
-  -I./ \
-  -std=c++20 \
-  -g
+# Configure CMake in Debug mode without tests
+cmake -S . -B $BUILD_DIR -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF
 
-# Run the emulator
-echo "Running..."
-lldb ./bin/emulator
+# Build the emulator with debug symbols
+cmake --build $BUILD_DIR --target emulator -j 12
+
+# Run the emulator with GDB
+lldb $BUILD_DIR/emulator

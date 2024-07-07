@@ -1,1 +1,5 @@
 bin
+build
+build_debug
+.vscode
+.DS_Store

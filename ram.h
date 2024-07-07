@@ -97,6 +97,12 @@ static inline uint32_t swap32(uint32_t v)
 }
 
 template<uint32_t Offset>
+inline uint8_t ram_read_byte_from_io_registers_fast(RAM& ram) {
+  constexpr uint32_t offset = Offset & MEMORY_NOT_MASK;
+  return ram.io_registers[offset];
+}
+
+template<uint32_t Offset>
 inline uint32_t ram_read_word_from_io_registers_fast(RAM& ram) {
   constexpr uint32_t offset = Offset & MEMORY_NOT_MASK;
   return *(uint32_t*)&ram.io_registers[offset];
