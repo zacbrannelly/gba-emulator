@@ -15,4 +15,4 @@ jobs:
           sudo apt install -y build-essential
 
       - name: Build & Run tests
-        run: ./run_tests.sh
+        run: ./run_ci_tests.sh

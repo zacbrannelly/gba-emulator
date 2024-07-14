@@ -1,0 +1,3 @@
+[submodule "3rdparty/zengine"]
+	path = 3rdparty/zengine
+	url = https://github.com/zacbrannelly/zengine

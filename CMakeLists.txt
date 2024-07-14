@@ -8,9 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Option to build tests (ON by default)
 option(BUILD_TESTS "Build the test runner" ON)
 
-# Add include directories
-include_directories(${CMAKE_SOURCE_DIR}/3rdparty)
-include_directories(${CMAKE_SOURCE_DIR})
+# Option to build tests only (OFF by default)
+option(CI_RUNNER "Build only the test runner" OFF)
 
 # Define source files
 set(COMMON_SOURCES
@@ -21,14 +20,42 @@ set(COMMON_SOURCES
     gpu.cpp
 )
 
-# Emulator executable
-add_executable(emulator
-    ${COMMON_SOURCES}
-    emulator.cpp
-)
+# Only build emulator if not running in CI
+if (NOT CI_RUNNER)
+    # Include ZEngine (for rendering)
+    add_subdirectory(3rdparty/zengine)
 
-# Optimization flag for release builds
-target_compile_options(emulator PRIVATE $<$<CONFIG:RELEASE>:-O3>)
+    find_package(glm REQUIRED)
+    find_package(glfw3 3.3 REQUIRED)
+
+    # Get include directories for dependencies
+    get_target_property(GLFW_INCLUDE_DIRS glfw INTERFACE_INCLUDE_DIRECTORIES)
+    set(BGFX_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zengine/3rdparty/bgfx.cmake/bgfx/include)
+    set(IMGUI_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zengine/3rdparty/imgui.cmake/imgui)
+    set(GUIZMO_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zengine/3rdparty/imgui.cmake/guizmo)
+    set(ICON_FONT_HEADERS_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zengine/3rdparty/iconfontheaders)
+
+    # Emulator executable
+    add_executable(emulator
+        ${COMMON_SOURCES}
+        emulator.cpp
+    )
+
+    # Add include directories
+    target_include_directories(emulator PRIVATE ${GLFW_INCLUDE_DIRS})
+    target_include_directories(emulator PRIVATE ${BGFX_INCLUDE_DIRS})
+    target_include_directories(emulator PRIVATE ${IMGUI_INCLUDE_DIRS})
+    target_include_directories(emulator PRIVATE ${GUIZMO_INCLUDE_DIRS})
+    target_include_directories(emulator PRIVATE ${ICON_FONT_HEADERS_INCLUDE_DIRS})
+    target_include_directories(emulator PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty)
+    target_include_directories(emulator PRIVATE ${CMAKE_SOURCE_DIR})
+
+    # Optimization flag for release builds
+    target_compile_options(emulator PRIVATE $<$<CONFIG:RELEASE>:-O3>)
+
+    # Link ZEngine
+    target_link_libraries(emulator PRIVATE ZEngine-Core)
+endif()
 
 # Conditionally build tests
 if(BUILD_TESTS)
@@ -41,14 +68,12 @@ if(BUILD_TESTS)
         3rdparty/catch_amalgamated.cpp
     )
 
+    target_include_directories(test_runner PRIVATE ${CMAKE_SOURCE_DIR})
+    target_include_directories(test_runner PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty)
+
     # Custom target for running tests
     add_custom_target(run_tests
         COMMAND ${CMAKE_BINARY_DIR}/test_runner
-        DEPENDS test_runner
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
-    add_custom_target(debug_tests
-        COMMAND lldb ${CMAKE_BINARY_DIR}/test_runner
         DEPENDS test_runner
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )

@@ -3,3 +3,6 @@ build
 build_debug
 .vscode
 .DS_Store
+*.gba
+*.sav
+gba_bios.bin

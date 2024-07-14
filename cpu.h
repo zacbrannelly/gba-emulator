@@ -136,6 +136,7 @@ enum DataProcessingOpcodes {
 // Manual: https://www.dwedit.org/files/ARM7TDMI.pdf
 struct CPU {
   uint64_t cycle_count = 0;
+  bool killSignal = false;
 
   // Memory Mapper
   RAM ram;
