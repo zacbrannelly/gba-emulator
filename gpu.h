@@ -6,7 +6,8 @@ static constexpr uint32_t FRAME_WIDTH = 240;
 static constexpr uint32_t FRAME_HEIGHT = 160;
 static constexpr uint32_t FRAME_BUFFER_SIZE = FRAME_WIDTH * FRAME_HEIGHT;
 static constexpr uint32_t FRAME_BUFFER_SIZE_BYTES = FRAME_BUFFER_SIZE * sizeof(uint16_t);
-static constexpr uint32_t FRAME_BUFFER_PITCH = FRAME_WIDTH * sizeof(uint16_t);
+static constexpr uint32_t FRAME_BUFFER_PITCH = FRAME_WIDTH;
+
 struct GPU {
   uint16_t frameBuffer[FRAME_BUFFER_SIZE];
 };
