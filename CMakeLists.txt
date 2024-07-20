@@ -38,6 +38,9 @@ if (NOT CI_RUNNER)
     # Emulator executable
     add_executable(emulator
         ${COMMON_SOURCES}
+        palette_debugger.cpp
+        sprite_debugger.cpp
+        ram_debugger.cpp
         emulator.cpp
     )
 

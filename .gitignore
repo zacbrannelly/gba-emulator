@@ -6,3 +6,4 @@ build_debug
 *.gba
 *.sav
 gba_bios.bin
+debug/

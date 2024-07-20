@@ -2084,6 +2084,9 @@ void cpu_reset(CPU& cpu) {
 }
 
 void cpu_init(CPU& cpu) {
+  // Init CPSR flags.
+  cpu.cspr = (uint32_t)System | CSPR_FIQ_DISABLE;
+
   // Init the RAM
   ram_init(cpu.ram);
 

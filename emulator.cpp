@@ -11,6 +11,9 @@
 #include "dma.h"
 #include "gpu.h"
 #include "timer.h"
+#include "palette_debugger.h"
+#include "sprite_debugger.h"
+#include "ram_debugger.h"
 
 #include "3rdparty/zengine/ZEngine-Core/Misc/Factory.h"
 #include "3rdparty/zengine/ZEngine-Core/Input/InputManager.h"
@@ -32,14 +35,16 @@ enum DebuggerCommand {
   STEP,
   BREAK,
   NEXT_FRAME,
+  RESET,
 };
 
 struct DebuggerState {
+  uint32_t breakpoint_address;
   DebuggerMode mode;
   std::queue<DebuggerCommand> command_queue;
 };
 
-void cycle(CPU& cpu, Timer& timer) {
+void cycle(CPU& cpu, GPU& gpu, Timer& timer) {
   // PC alignment check.
   if (cpu.cspr & CSPR_THUMB_STATE) {
     if (cpu.get_register_value(PC) % 2 != 0) {
@@ -55,7 +60,7 @@ void cycle(CPU& cpu, Timer& timer) {
   cpu_interrupt_cycle(cpu);
 
   // Cycle the GPU.
-  gpu_cycle(cpu);
+  gpu_cycle(cpu, gpu);
 
   // Cycle the DMA controller.
   dma_cycle(cpu);
@@ -66,8 +71,19 @@ void cycle(CPU& cpu, Timer& timer) {
   cpu.cycle_count++;
 }
 
-void emulator_loop(CPU& cpu, Timer& timer, DebuggerState& debugger_state) {
+void reset_cpu(CPU& cpu, GPU& gpu, Timer& timer) {
+  for (int i = 0; i < 16; i++) {
+    cpu.set_register_value(i, 0);
+  }
+  cpu.cspr = (uint32_t)System | CSPR_FIQ_DISABLE;
+  cpu.cycle_count = 0;
+
+  ram_soft_reset(cpu.ram);
+}
+
+void emulator_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_state) {
   cpu_init(cpu);
+  gpu_init(cpu, gpu);
   timer_init(cpu, timer);
   
   ram_load_bios(cpu.ram, "gba_bios.bin");
@@ -103,28 +119,36 @@ void emulator_loop(CPU& cpu, Timer& timer, DebuggerState& debugger_state) {
       // Process the command.
       switch (command) {
         case CONTINUE:
+          cycle(cpu, gpu, timer);
           debugger_state.mode = NORMAL;
           break;
         case STEP:
-          cycle(cpu, timer);
+          cycle(cpu, gpu, timer);
           debugger_state.mode = DEBUG;
           break;
         case BREAK:
           debugger_state.mode = DEBUG;
           break;
+        case RESET:
+          reset_cpu(cpu, gpu, timer);
+          break;
         case NEXT_FRAME:
           uint8_t scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
           bool hit_vcount = false;
           while (scanline != 160) {
-            cycle(cpu, timer);
+            cycle(cpu, gpu, timer);
             scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
           }
           while (scanline == 160) {
-            cycle(cpu, timer);
+            cycle(cpu, gpu, timer);
             scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
           }
           break;
       }
+    }
+
+    if (cpu.get_register_value(PC) == debugger_state.breakpoint_address) {
+      debugger_state.mode = DEBUG;
     }
 
     if (debugger_state.mode == DEBUG) {
@@ -132,7 +156,7 @@ void emulator_loop(CPU& cpu, Timer& timer, DebuggerState& debugger_state) {
       continue;
     }
 
-    cycle(cpu, timer);
+    cycle(cpu, gpu, timer);
   }
 }
 
@@ -164,6 +188,15 @@ void cpu_debugger_window(CPU& cpu, DebuggerState& debugger_state) {
       debugger_state.command_queue.push(NEXT_FRAME);
     }
 
+    // Reset button.
+    ImGui::SameLine();
+    if (ImGui::Button("Reset")) {
+      debugger_state.command_queue.push(RESET);
+    }
+
+    // Breakpoint.
+    ImGui::InputScalar("Breakpoint", ImGuiDataType_U32, &debugger_state.breakpoint_address, 0, 0, "%08X", ImGuiInputTextFlags_CharsHexadecimal);
+
     ImGui::Text("PC: 0x%08X", cpu.get_register_value(PC));
     for (int i = 0; i < 16; i++) {
       ImGui::Text("R%d: 0x%08X", i, cpu.get_register_value(i));
@@ -183,16 +216,16 @@ void cpu_debugger_window(CPU& cpu, DebuggerState& debugger_state) {
     ImGui::Text("Interrupt Request Flags: 0x%04X", reg_interrupt_request_flags);
     ImGui::Text("Interrupt Master Enable: 0x%04X", reg_interrupt_master_enable);
 
-    ImGui::Text("Cycle Count: %d", cpu.cycle_count);
+    ImGui::Text("Cycle Count: %llu", cpu.cycle_count);
 
     ImGui::End();
   }
 }
 
-void graphics_loop(CPU& cpu, DebuggerState& debugger_state) {
+void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
   Factory::Init();
 
-  Display display("GBA Emulator", 1024, 700);
+  Display display("GBA Emulator", 1920, 1080);
   if (!display.Init()) {
     throw std::runtime_error("Failed to initialize display.");
   }
@@ -209,18 +242,32 @@ void graphics_loop(CPU& cpu, DebuggerState& debugger_state) {
   auto gui = GUILibrary::GetInstance();
   gui->Init(&display);
 
-  std::vector<uint32_t> frameData(240 * 160, 0);
-  for (int i = 0; i < 240 * 160; i++) {
-    frameData[i] = 0xFFFFFFFF;
-  }
-
-  auto frameTexture = new Texture2D(240, 160, false, 1, bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_NONE);
-  frameTexture->Update(0, 0, 240, 160, frameData.data(), frameData.size() * sizeof(uint32_t), 240 * sizeof(uint32_t));
+  auto frameTexture = new Texture2D(
+    FRAME_WIDTH,
+    FRAME_HEIGHT,
+    false,
+    1,
+    bgfx::TextureFormat::RGB5A1,
+    BGFX_TEXTURE_NONE |
+    BGFX_SAMPLER_MIN_POINT |
+    BGFX_SAMPLER_MAG_POINT |
+    BGFX_SAMPLER_MIP_POINT
+  );
 
   std::function<void()> updateCallback = [&]() {};
-
   std::function<void()> renderCallback = [&]() {
     gui->NewFrame();
+
+    // Update the frame texture.
+    frameTexture->Update(
+      0,
+      0,
+      FRAME_WIDTH,
+      FRAME_HEIGHT,
+      gpu.frameBuffer,
+      FRAME_BUFFER_SIZE_BYTES,
+      FRAME_BUFFER_PITCH
+    );
 
     if (ImGui::Begin("GBA Emulator")) {
       ImGui::Image(frameTexture->GetHandle(), ImVec2(240 * 2, 160 * 2));
@@ -228,15 +275,15 @@ void graphics_loop(CPU& cpu, DebuggerState& debugger_state) {
     }
 
     cpu_debugger_window(cpu, debugger_state);
+    palette_debugger_window(cpu);
+    sprite_debugger_window(cpu);
+    ram_debugger_window(cpu);
 
     gui->EndFrame();
 
     graphics->Clear(VIEW_ID, 20, 20, 20, 255);
     graphics->Viewport(VIEW_ID, 0, 0, display.GetWidth(), display.GetHeight());
     graphics->Touch(VIEW_ID);
-
-    // TODO: We need to render by scanline.
-    // TODO: Figure out how to create a pixel buffer that we can easily write to.
 
     graphics->Render();
     inputManager->ClearMouseDelta();
@@ -254,9 +301,9 @@ void graphics_loop(CPU& cpu, DebuggerState& debugger_state) {
   time->Shutdown();
 }
 
-void start_cpu_loop(CPU& cpu, Timer& timer, DebuggerState& debugger_state) {
+void start_cpu_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_state) {
   try {
-    emulator_loop(cpu, timer, debugger_state);
+    emulator_loop(cpu, gpu, timer, debugger_state);
   } catch (std::exception& e) {
     debug_print_cpu_state(cpu);
     std::cout << e.what() << std::endl;
@@ -265,6 +312,7 @@ void start_cpu_loop(CPU& cpu, Timer& timer, DebuggerState& debugger_state) {
 
 int main(int argc, char* argv[]) {
   CPU cpu;
+  GPU gpu;
   Timer timer;
   DebuggerState debugger_state;
 
@@ -272,10 +320,10 @@ int main(int argc, char* argv[]) {
   debugger_state.mode = DEBUG;
 
   // Run CPU in a separate thread.
-  std::thread cpu_thread(start_cpu_loop, std::ref(cpu), std::ref(timer), std::ref(debugger_state));
+  std::thread cpu_thread(start_cpu_loop, std::ref(cpu), std::ref(gpu), std::ref(timer), std::ref(debugger_state));
 
   // Run graphics in the main thread.
-  graphics_loop(cpu, debugger_state);
+  graphics_loop(cpu, gpu, debugger_state);
 
   cpu_thread.join();
 

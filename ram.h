@@ -79,6 +79,7 @@ struct RAM {
 };
 
 void ram_init(RAM& ram);
+void ram_soft_reset(RAM& ram);
 void ram_load_rom(RAM& ram, std::string const& path);
 void ram_load_bios(RAM& ram, std::string const& path);
 void ram_register_read_hook(RAM& ram, uint32_t address, std::function<uint32_t(RAM&, uint32_t)> const& hook);
@@ -249,7 +250,7 @@ inline int32_t ram_read_word_signed_direct(RAM& ram, uint32_t address) {
 
 inline void ram_write_byte(RAM& ram, uint32_t address, uint8_t value) {
   if (ram.enable_rom_write_protection && address <= BIOS_END) {
-    std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
+    // std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
     return;
   }
   if (ram_address_has_write_hook(ram, address)) {
@@ -262,7 +263,7 @@ inline void ram_write_byte(RAM& ram, uint32_t address, uint8_t value) {
 // Direct write access without clear-on-write checks (for interrupt flags).
 inline void ram_write_byte_direct(RAM& ram, uint32_t address, uint8_t value) {
   if (ram.enable_rom_write_protection && address <= BIOS_END) {
-    std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
+    // std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
     return;
   }
   *ram_resolve_address(ram, address) = value;
@@ -270,7 +271,7 @@ inline void ram_write_byte_direct(RAM& ram, uint32_t address, uint8_t value) {
 
 inline void ram_write_half_word(RAM& ram, uint32_t address, uint16_t value) {
   if (ram.enable_rom_write_protection && address <= BIOS_END) {
-    std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
+    // std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
     return;
   }
   if (ram_address_has_write_hook(ram, address)) {
@@ -283,7 +284,7 @@ inline void ram_write_half_word(RAM& ram, uint32_t address, uint16_t value) {
 // Direct write access without clear-on-write checks (for interrupt flags).
 inline void ram_write_half_word_direct(RAM& ram, uint32_t address, uint32_t value) {
   if (ram.enable_rom_write_protection && address <= BIOS_END) {
-    std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
+    // std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
     return;
   }
   *(uint16_t*)ram_resolve_address(ram, address) = value;
@@ -291,7 +292,7 @@ inline void ram_write_half_word_direct(RAM& ram, uint32_t address, uint32_t valu
 
 inline void ram_write_word(RAM& ram, uint32_t address, uint32_t value) {
   if (ram.enable_rom_write_protection && address <= BIOS_END) {
-    std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
+    // std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
     return;
   }
   if (ram_address_has_write_hook(ram, address)) {
@@ -304,7 +305,7 @@ inline void ram_write_word(RAM& ram, uint32_t address, uint32_t value) {
 // Direct write access without clear-on-write checks (for interrupt flags).
 inline void ram_write_word_direct(RAM& ram, uint32_t address, uint32_t value) {
   if (ram.enable_rom_write_protection && address <= BIOS_END) {
-    throw std::runtime_error("Error: Attempted to write to read-only memory");
+    // std::cout << "Warning: Attempted to write to read-only memory, skipped write op" << std::endl;
   }
   *(uint32_t*)ram_resolve_address(ram, address) = value;
 }

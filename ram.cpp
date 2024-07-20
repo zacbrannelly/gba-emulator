@@ -33,6 +33,16 @@ void ram_init(RAM& ram) {
   });
 }
 
+void ram_soft_reset(RAM& ram) {
+  // TODO: Put the size of each memory region in a constant.
+  memset(ram.external_working_ram, 0, 0x40000);
+  memset(ram.internal_working_ram, 0, 0x8000);
+  memset(ram.io_registers, 0, 0x804);
+  memset(ram.palette_ram, 0, 0x400);
+  memset(ram.video_ram, 0, 0x18000);
+  memset(ram.object_attribute_memory, 0, 0x400);
+}
+
 void ram_load_rom(RAM& ram, std::string const& path) {
   if (ram.load_rom_into_bios) {
     ram_load_bios(ram, path);
