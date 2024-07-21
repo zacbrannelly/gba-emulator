@@ -39,6 +39,9 @@ void sprite_debugger_window(CPU& cpu) {
     ImGui::Text("X: %d", x_coord);
     ImGui::Text("Y: %d", y_coord);
 
+    uint8_t priority = (attr2 >> 10) & 0x3;
+    ImGui::Text("Priority: %d", priority);
+
     bool is_256_color_mode = attr0 & (1 << 13);
     const char* palette_mode = is_256_color_mode ? "256 colors" : "16 colors";
     ImGui::Text("Palette Mode: %s", palette_mode);
@@ -67,6 +70,29 @@ void sprite_debugger_window(CPU& cpu) {
     if (rotation_scaling) {
       bool double_size = attr0 & (1 << 9);
       ImGui::Checkbox("Double Size", &double_size);
+
+      // Matrix
+      uint8_t matrix_index = (attr1 & (0xF << 9)) >> 9;
+      ImGui::Text("Matrix Index: %d", matrix_index);
+
+      // Rotation / Scaling parameters
+      int16_t pa = 0;
+      int16_t pb = 0;
+      int16_t pc = 0;
+      int16_t pd = 0;
+      gpu_get_obj_affine_params(cpu, attr1, pa, pb, pc, pd);
+
+      // Values are fixed point 8.8 (8 bits integer, 8 bits fractional)
+      // To convert to float, divide by 2^N where N is the number of fractional bits.
+      float a = pa / 256.0f;
+      float b = pb / 256.0f;
+      float c = pc / 256.0f;
+      float d = pd / 256.0f;
+
+      ImGui::Text("pa: %f", a);
+      ImGui::Text("pb: %f", b);
+      ImGui::Text("pc: %f", c);
+      ImGui::Text("pd: %f", d);
     } else {
       bool disable = attr0 & (1 << 9);
       ImGui::Checkbox("Disabled", &disable);
@@ -85,7 +111,7 @@ void sprite_debugger_window(CPU& cpu) {
     uint8_t size_enum = (attr1 & (3 << 14)) >> 14;
     uint8_t width = 0;
     uint8_t height = 0;
-    get_obj_size(shape_enum, size_enum, width, height);
+    gpu_get_obj_size(shape_enum, size_enum, width, height);
     ImGui::Text("Size: %dx%d", width, height);
 
     uint16_t tile_base = attr2 & 0x3FF;
