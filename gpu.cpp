@@ -1,5 +1,6 @@
 #include "gpu.h"
 #include "debug.h"
+#include <cstring>
 
 static constexpr uint16_t REG_LCD_STATUS_HBLANK_FLAG = 1 << 1;
 static constexpr uint16_t REG_LCD_STATUS_VCOUNT_MATCH_FLAG = 1 << 2;
