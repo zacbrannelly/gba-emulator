@@ -7,22 +7,221 @@ static constexpr uint16_t REG_LCD_STATUS_VBLANK_INTERRUPT_ENABLE = 1 << 3;
 static constexpr uint16_t REG_LCD_STATUS_HBLANK_INTERRUPT_ENABLE = 1 << 4;
 static constexpr uint16_t REG_LCD_STATUS_VCOUNT_MATCH_INTERRUPT_ENABLE = 1 << 5;
 
-void gpu_init(CPU& cpu, GPU& gpu) {
-  // Initialize the frame buffer to white.
-  for (uint32_t i = 0; i < FRAME_BUFFER_SIZE; i++) {
-    gpu.frameBuffer[i] = 0xFFFF;
-  }
-
-  // TODO: Initialize the GPU registers.
-}
-
 static constexpr uint32_t TILE_SIZE = 8;
 static constexpr uint32_t HALF_TILE_SIZE = 4;
 static constexpr uint32_t TILE_4BPP_BYTES = 32;
 static constexpr uint32_t TILE_8BPP_BYTES = 64;
 static constexpr uint16_t ENABLE_PIXEL = 1 << 15;
 
+void gpu_init(CPU& cpu, GPU& gpu) {
+  // Initialize the frame buffer to white.
+  for (uint32_t i = 0; i < FRAME_BUFFER_SIZE; i++) {
+    gpu.frame_buffer[i] = 0xFFFF;
+  }
+
+  // TODO: Initialize the GPU registers.
+}
+
+static constexpr int TARGET_LAYER_BG0 = 0;
+static constexpr int TARGET_LAYER_BG1 = 1;
+static constexpr int TARGET_LAYER_BG2 = 2;
+static constexpr int TARGET_LAYER_BG3 = 3;
+static constexpr int TARGET_LAYER_OBJ = 4;
+static constexpr int TARGET_LAYER_BACKDROP = 5;
+
+inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
+  uint16_t special_effects_control = ram_read_half_word_from_io_registers_fast<REG_BLDCNT>(cpu.ram);
+
+  uint8_t special_effects_mode = (special_effects_control >> 6) & 0x3;
+  bool target_1[6] = {
+    (special_effects_control & 0x1) > 0,
+    (special_effects_control & 0x2) > 0,
+    (special_effects_control & 0x4) > 0,
+    (special_effects_control & 0x8) > 0,
+    (special_effects_control & 0x10) > 0,
+    (special_effects_control & 0x20) > 0
+  };
+  bool target_2[6] = {
+    (special_effects_control & 0x100) > 0,
+    (special_effects_control & 0x200) > 0,
+    (special_effects_control & 0x400) > 0,
+    (special_effects_control & 0x800) > 0,
+    (special_effects_control & 0x1000) > 0,
+    (special_effects_control & 0x2000) > 0
+  };
+  switch (special_effects_mode) {
+    case 0: {
+      // No special effects
+      break;
+    }
+    case 1: {
+      // Alpha Blending
+      uint16_t blend_alpha_coefficients = ram_read_half_word_from_io_registers_fast<REG_BLDALPHA>(cpu.ram);
+      uint8_t alpha_a = blend_alpha_coefficients & 0x1F;
+      uint8_t alpha_b = (blend_alpha_coefficients >> 8) & 0x1F;
+
+      if (alpha_a > 16) {
+        alpha_a = 16;
+      }
+      if (alpha_b > 16) {
+        alpha_b = 16;
+      }
+
+      float alpha_a_normalized = alpha_a / 16.0f;
+      float alpha_b_normalized = alpha_b / 16.0f;
+
+      for (int i = 0; i < FRAME_WIDTH; ++i) {
+        uint8_t target_1_priority = 0;
+        uint8_t target_1_idx = 0;
+        uint16_t target_1_color = 0;
+
+        // Get top most pixel and it's source.
+        for (int j = 3; j >= 0; j--) {
+          uint16_t color = gpu.scanline_priority_buffers[j][i];
+          if (color > 0) {
+            target_1_priority = j;
+            target_1_color = color;
+            target_1_idx = (uint8_t)gpu.scanline_priority_pixel_sources[j][i];
+            break;
+          }
+        }
+
+        // Check if the target is enabled.
+        if (!target_1[target_1_idx - 1]) continue;
+
+        uint8_t target_2_priority = 0;
+        uint8_t target_2_idx = 0;
+        uint16_t target_2_color = 0;
+
+        // Get the next top most pixel and it's source.
+        for (int j = target_1_priority - 1; j >= 0; j--) {
+          uint16_t color = gpu.scanline_priority_buffers[j][i];
+          if (color > 0) {
+            target_2_priority = j;
+            target_2_color = color;
+            target_2_idx = (uint8_t)gpu.scanline_priority_pixel_sources[j][i];
+            break;
+          }
+        }
+
+        // Check if the target is enabled.
+        if (!target_2[target_2_idx - 1]) continue;
+
+        uint8_t target_b_r = (target_2_color & 0x1F);
+        uint8_t target_b_g = ((target_2_color >> 5) & 0x1F);
+        uint8_t target_b_b = ((target_2_color >> 10) & 0x1F);
+
+        uint8_t target_a_r = (target_1_color & 0x1F);
+        uint8_t target_a_g = ((target_1_color >> 5) & 0x1F);
+        uint8_t target_a_b = ((target_1_color >> 10) & 0x1F);
+
+        uint8_t r = (uint8_t)(alpha_a_normalized * target_a_r + alpha_b_normalized * target_b_r);
+        uint8_t g = (uint8_t)(alpha_a_normalized * target_a_g + alpha_b_normalized * target_b_g);
+        uint8_t b = (uint8_t)(alpha_a_normalized * target_a_b + alpha_b_normalized * target_b_b);
+
+        // Clip the intensity values.
+        if (r > 0x1F) {
+          r = 0x1F;
+        }
+        if (g > 0x1F) {
+          g = 0x1F;
+        }
+        if (b > 0x1F) {
+          b = 0x1F;
+        }
+
+        uint16_t blended_color = r | (g << 5) | (b << 10);
+        if (blended_color > 0) {
+          gpu.final_scanline_buffer[i] = blended_color | ENABLE_PIXEL;
+        }
+      }
+      break;
+    }
+    case 2: {
+      // Brightness Increase Effect
+      uint8_t effect_coefficients = ram_read_byte_from_io_registers_fast<REG_BLDY>(cpu.ram);
+      if (effect_coefficients > 16) {
+        effect_coefficients = 16;
+      }
+      float effect_coefficients_normalized = effect_coefficients / 16.0f;
+
+      for (int i = 0; i < FRAME_WIDTH; ++i) {
+        uint8_t target_1_idx = 0;
+        uint16_t target_1_color = 0;
+
+        // Get top most pixel and it's source.
+        for (int j = 3; j >= 0; j--) {
+          uint16_t color = gpu.scanline_priority_buffers[j][i];
+          if (color > 0) {
+            target_1_color = color;
+            target_1_idx = (uint8_t)gpu.scanline_priority_pixel_sources[j][i];
+            break;
+          }
+        }
+
+        // Check if the target is enabled.
+        if (!target_1[target_1_idx - 1]) continue;
+
+        uint8_t target_a_r = (target_1_color & 0x1F);
+        uint8_t target_a_g = ((target_1_color >> 5) & 0x1F);
+        uint8_t target_a_b = ((target_1_color >> 10) & 0x1F);
+
+        uint8_t r = target_a_r + (0x1F - target_a_r) * effect_coefficients_normalized;
+        uint8_t g = target_a_g + (0x1F - target_a_g) * effect_coefficients_normalized;
+        uint8_t b = target_a_b + (0x1F - target_a_b) * effect_coefficients_normalized;
+
+        // Clip the intensity values.
+        if (r > 0x1F) {
+          r = 0x1F;
+        }
+        if (g > 0x1F) {
+          g = 0x1F;
+        }
+        if (b > 0x1F) {
+          b = 0x1F;
+        }
+
+        uint16_t blended_color = r | (g << 5) | (b << 10);
+        if (blended_color > 0) {
+          gpu.final_scanline_buffer[i] = blended_color | ENABLE_PIXEL;
+        }
+      }
+      break;
+    }
+    case 3: {
+      // TODO: Brightness Decrease Effect
+      break;
+    }
+  }
+}
+
+inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
+  for (int i = 0; i < FRAME_WIDTH; i++) {
+    for (int j = 0; j < 4; j++) {
+      uint16_t color = gpu.scanline_priority_buffers[j][i];
+      if (color > 0) {
+        gpu.final_scanline_buffer[i] = color;
+      }
+    }
+  }
+}
+
+inline void gpu_clear_scanline_buffers(GPU& gpu) {
+  // Reset layer buffers.
+  memset(gpu.final_scanline_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
+  for (int i = 0; i < 4; i++) {
+    memset(gpu.scanline_priority_buffers[i], 0, FRAME_WIDTH * sizeof(uint16_t));
+    for (int j = 0; j < FRAME_WIDTH; j++) {
+      gpu.scanline_priority_pixel_sources[i][j] = PIXEL_SOURCE_NONE;
+    }
+  }
+}
+
 void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
+  // Reset layer buffers.
+  gpu_clear_scanline_buffers(gpu);
+
+  uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
   uint8_t* vram = cpu.ram.video_ram;
   uint16_t* bg_palette_ram = (uint16_t*)(cpu.ram.palette_ram);
 
@@ -31,13 +230,23 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
     backdrop_color |= ENABLE_PIXEL;
   }
 
-  // Clear the row with the backdrop color.
+  // =================================================================================================
+  // Backdrop Layer
+  // =================================================================================================
   for (uint32_t i = 0; i < FRAME_WIDTH; i++) {
-    gpu.frameBuffer[scanline * FRAME_BUFFER_PITCH + i] = backdrop_color;
+    gpu.scanline_priority_buffers[0][i] = backdrop_color;
+    gpu.scanline_priority_pixel_sources[0][i] = PIXEL_SOURCE_BACKDROP;
   }
 
-  // Draw OBJs
-  uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
+  // =================================================================================================
+  // BG Layers
+  // =================================================================================================
+
+  // TODO: Implement the logic for each BG layer.
+
+  // =================================================================================================
+  // OBJ Layer
+  // =================================================================================================
   bool is_one_dimensional = disp_cnt & (1 << 6);
 
   uint16_t* oam = (uint16_t*)cpu.ram.object_attribute_memory;
@@ -133,6 +342,8 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
     uint8_t center_x_screen_space = x_coord + half_width;
     uint8_t center_y_screen_space = y_coord + half_height;
 
+    uint8_t priority = (attr2 >> 10) & 0x3;
+
     int iy = y_in_draw_area - half_height;
     for (int ix = -half_width; ix < half_width; ix++) {
       int texture_x = (pa * ix + pb * iy) >> 8;
@@ -196,7 +407,8 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
           continue;
         }
 
-        gpu.frameBuffer[y * FRAME_BUFFER_PITCH + x] = color;
+        gpu.scanline_priority_buffers[priority][x] = color;
+        gpu.scanline_priority_pixel_sources[priority][x] = PIXEL_SOURCE_OBJ;
       } else {
         // TODO: This code path is untested.
         uint8_t palette_indices = current_tile[texture_y_in_tile * HALF_TILE_SIZE + texture_x_in_tile / 2];
@@ -205,52 +417,67 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
 
         if (color_left > 0) {
           color_left |= ENABLE_PIXEL;
-          gpu.frameBuffer[y * FRAME_BUFFER_PITCH + x] = color_left;
+          gpu.scanline_priority_buffers[priority][x] = color_left;
+          gpu.scanline_priority_pixel_sources[priority][x] = PIXEL_SOURCE_OBJ;
         }
 
         if (color_right > 0) {
           color_right |= ENABLE_PIXEL;
-          gpu.frameBuffer[y * FRAME_BUFFER_PITCH + x + 1] = color_right;
+          gpu.scanline_priority_buffers[priority][x + 1] = color_right;
+          gpu.scanline_priority_pixel_sources[priority][x + 1] = PIXEL_SOURCE_OBJ;
         }
       }
     }
   }
+
+  // Composite the various priority buffers to a final scanline.
+  gpu_resolve_final_scanline_buffer(cpu, gpu);
+
+  // Apply Special Effects
+  gpu_apply_special_effects(cpu, gpu);
+
+  // Copy the final scanline buffer to the frame buffer.
+  uint32_t frame_buffer_offset = scanline * FRAME_WIDTH;
+  memcpy(&gpu.frame_buffer[frame_buffer_offset], gpu.final_scanline_buffer, FRAME_WIDTH * sizeof(uint16_t));
 }
 
 void gpu_complete_scanline(CPU& cpu, GPU& gpu) {
-  uint8_t scanline = ram_read_byte(cpu.ram, REG_VERTICAL_COUNT);
-  uint16_t lcd_status = ram_read_half_word(cpu.ram, REG_LCD_STATUS);
+  uint8_t scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
+  uint16_t lcd_status = ram_read_half_word_from_io_registers_fast<REG_LCD_STATUS>(cpu.ram);
 
   // Begin VCount match
   uint8_t vertical_count_setting = lcd_status >> 8;
   if (scanline == vertical_count_setting) {
     lcd_status |= REG_LCD_STATUS_VCOUNT_MATCH_FLAG;
-    ram_write_half_word(cpu.ram, REG_LCD_STATUS, lcd_status);
+    ram_write_half_word_to_io_registers_fast<REG_LCD_STATUS>(cpu.ram, lcd_status);
 
     // Request VCount interrupt (if it is enabled)
     if (lcd_status & REG_LCD_STATUS_VCOUNT_MATCH_INTERRUPT_ENABLE) {
-      uint16_t interrupt_flags = ram_read_half_word(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS);
+      uint16_t interrupt_flags = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
       interrupt_flags |= REG_LCD_STATUS_VCOUNT_MATCH_FLAG;
-      ram_write_half_word_direct(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS, interrupt_flags);
+
+      // NOTE: The following write must skip write hooks, since this register is clear-on-write.
+      ram_write_half_word_to_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram, interrupt_flags);
     }
   } else if (lcd_status & REG_LCD_STATUS_VCOUNT_MATCH_FLAG) {
     // End VCount match
     lcd_status &= ~REG_LCD_STATUS_VCOUNT_MATCH_FLAG;
-    ram_write_half_word(cpu.ram, REG_LCD_STATUS, lcd_status);
+    ram_write_half_word_to_io_registers_fast<REG_LCD_STATUS>(cpu.ram, lcd_status);
   }
 
   // Begin VBlank
   if (scanline == 160) {
     // std::cout << "VBlank" << std::endl;
     lcd_status |= 0x1;
-    ram_write_half_word(cpu.ram, REG_LCD_STATUS, lcd_status);
+    ram_write_half_word_to_io_registers_fast<REG_LCD_STATUS>(cpu.ram, lcd_status);
 
     // Request VBlank interrupt (if it is enabled)
     if (lcd_status & REG_LCD_STATUS_VBLANK_INTERRUPT_ENABLE) {
       // std::cout << "VBlank interrupt" << std::endl;
-      uint16_t interrupt_flags = ram_read_half_word(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS);
+      uint16_t interrupt_flags = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
       interrupt_flags |= 0x1;
-      ram_write_half_word_direct(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS, interrupt_flags);
+      // NOTE: The following write must skip write hooks, since this register is clear-on-write.
+      ram_write_half_word_to_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram, interrupt_flags);
     }
   }
 
@@ -261,9 +488,9 @@ void gpu_complete_scanline(CPU& cpu, GPU& gpu) {
 
   // End VBlank
   if (scanline == 226) {
-    uint16_t lcd_status = ram_read_half_word(cpu.ram, REG_LCD_STATUS);
+    uint16_t lcd_status = ram_read_half_word_from_io_registers_fast<REG_LCD_STATUS>(cpu.ram);
     lcd_status &= ~0x1;
-    ram_write_half_word(cpu.ram, REG_LCD_STATUS, lcd_status);
+    ram_write_half_word_to_io_registers_fast<REG_LCD_STATUS>(cpu.ram, lcd_status);
   }
 
   // Increment scanline
@@ -271,11 +498,7 @@ void gpu_complete_scanline(CPU& cpu, GPU& gpu) {
   if (scanline == 228) {
     scanline = 0;
   }
-  ram_write_byte(cpu.ram, REG_VERTICAL_COUNT, scanline);
-
-  if (scanline == 0) {
-    // print_screen_state(cpu);
-  }
+  ram_write_byte_to_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram, scanline);
 }
 
 void gpu_cycle(CPU& cpu, GPU& gpu) {
@@ -287,21 +510,22 @@ void gpu_cycle(CPU& cpu, GPU& gpu) {
   uint32_t cycles_into_scanline = 1232 - cpu.cycle_count % 1232;
   if (cycles_into_scanline == 1232 - 272) {
     // Begin HBlank
-    uint16_t lcd_status = ram_read_half_word(cpu.ram, REG_LCD_STATUS);
+    uint16_t lcd_status = ram_read_half_word_from_io_registers_fast<REG_LCD_STATUS>(cpu.ram);
     lcd_status |= 1 << 1;
-    ram_write_half_word(cpu.ram, REG_LCD_STATUS, lcd_status);
+    ram_write_half_word_to_io_registers_fast<REG_LCD_STATUS>(cpu.ram, lcd_status);
 
     // Request HBlank interrupt (if it is enabled)
     if (lcd_status & REG_LCD_STATUS_HBLANK_INTERRUPT_ENABLE) {
       std::cout << "HBlank interrupt" << std::endl;
-      uint16_t interrupt_flags = ram_read_half_word(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS);
+      uint16_t interrupt_flags = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
       interrupt_flags |= REG_LCD_STATUS_HBLANK_FLAG;
-      ram_write_half_word_direct(cpu.ram, REG_INTERRUPT_REQUEST_FLAGS, interrupt_flags);
+      // NOTE: The following write MUST skip the write hooks, since this register is clear-on-write.
+      ram_write_half_word_to_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram, interrupt_flags);
     }
   } else if (cycles_into_scanline == 0) {
     // End HBlank
-    uint16_t lcd_status = ram_read_half_word(cpu.ram, REG_LCD_STATUS);
+    uint16_t lcd_status = ram_read_half_word_from_io_registers_fast<REG_LCD_STATUS>(cpu.ram);
     lcd_status &= ~REG_LCD_STATUS_HBLANK_FLAG;
-    ram_write_half_word(cpu.ram, REG_LCD_STATUS, lcd_status);
+    ram_write_half_word_to_io_registers_fast<REG_LCD_STATUS>(cpu.ram, lcd_status);
   }
 }

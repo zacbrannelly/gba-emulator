@@ -115,6 +115,24 @@ inline uint16_t ram_read_half_word_from_io_registers_fast(RAM& ram) {
   return *(uint16_t*)&ram.io_registers[offset];
 }
 
+template<uint32_t Offset>
+inline void ram_write_byte_to_io_registers_fast(RAM& ram, uint8_t value) {
+  constexpr uint32_t offset = Offset & MEMORY_NOT_MASK;
+  ram.io_registers[offset] = value;
+}
+
+template<uint32_t Offset>
+inline void ram_write_word_to_io_registers_fast(RAM& ram, uint32_t value) {
+  constexpr uint32_t offset = Offset & MEMORY_NOT_MASK;
+  *(uint32_t*)&ram.io_registers[offset] = value;
+}
+
+template<uint32_t Offset>
+inline void ram_write_half_word_to_io_registers_fast(RAM& ram, uint16_t value) {
+  constexpr uint32_t offset = Offset & MEMORY_NOT_MASK;
+  *(uint16_t*)&ram.io_registers[offset] = value;
+}
+
 inline bool ram_address_has_read_hook(RAM& ram, uint32_t address) {
   return std::find(ram.memory_read_hook_addresses.begin(), ram.memory_read_hook_addresses.end(), address) != ram.memory_read_hook_addresses.end();
 }

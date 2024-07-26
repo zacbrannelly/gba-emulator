@@ -89,6 +89,11 @@ static constexpr uint32_t REG_BG3_PARAM_D = 0x4000036;  // BG3PD - dmy
 static constexpr uint32_t REG_BG3_X_REF = 0x4000038;    // BG3X - X-Coordinate
 static constexpr uint32_t REG_BG3_Y_REF = 0x400003C;    // BG3Y - Y-Coordinate
 
+// Special Effects Registers
+static constexpr uint32_t REG_BLDCNT = 0x4000050; // BLDCNT - Color Special Effects Selection
+static constexpr uint32_t REG_BLDALPHA = 0x4000052; // BLDALPHA - Alpha Blending Coefficients
+static constexpr uint32_t REG_BLDY = 0x4000054; // BLDY - Brightness (Fade-In/Out) Coefficient
+
 // Window Dimension Registers
 static constexpr uint32_t REG_WINDOW0_HORIZONTAL = 0x4000040; // WIN0H - Window 0 Horizontal Dimensions
 static constexpr uint32_t REG_WINDOW1_HORIZONTAL = 0x4000042; // WIN1H - Window 1 Horizontal Dimensions

@@ -8,8 +8,22 @@ static constexpr uint32_t FRAME_BUFFER_SIZE = FRAME_WIDTH * FRAME_HEIGHT;
 static constexpr uint32_t FRAME_BUFFER_SIZE_BYTES = FRAME_BUFFER_SIZE * sizeof(uint16_t);
 static constexpr uint32_t FRAME_BUFFER_PITCH = FRAME_WIDTH;
 
+enum PixelSource {
+  PIXEL_SOURCE_NONE = 0,
+  PIXEL_SOURCE_BG0 = 1,
+  PIXEL_SOURCE_BG1 = 2,
+  PIXEL_SOURCE_BG2 = 3,
+  PIXEL_SOURCE_BG3 = 4,
+  PIXEL_SOURCE_OBJ = 5,
+  PIXEL_SOURCE_BACKDROP = 6
+};
+
 struct GPU {
-  uint16_t frameBuffer[FRAME_BUFFER_SIZE];
+  uint16_t scanline_priority_buffers[4][FRAME_WIDTH];
+  PixelSource scanline_priority_pixel_sources[4][FRAME_WIDTH];
+
+  uint16_t final_scanline_buffer[FRAME_WIDTH];
+  uint16_t frame_buffer[FRAME_BUFFER_SIZE];
 };
 
 void gpu_init(CPU& cpu, GPU& gpu);

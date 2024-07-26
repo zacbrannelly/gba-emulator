@@ -41,6 +41,7 @@ if (NOT CI_RUNNER)
         palette_debugger.cpp
         sprite_debugger.cpp
         ram_debugger.cpp
+        special_effects_debugger.cpp
         emulator.cpp
     )
 

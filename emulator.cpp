@@ -14,6 +14,7 @@
 #include "palette_debugger.h"
 #include "sprite_debugger.h"
 #include "ram_debugger.h"
+#include "special_effects_debugger.h"
 
 #include "3rdparty/zengine/ZEngine-Core/Misc/Factory.h"
 #include "3rdparty/zengine/ZEngine-Core/Input/InputManager.h"
@@ -40,6 +41,7 @@ enum DebuggerCommand {
 
 struct DebuggerState {
   uint32_t breakpoint_address;
+  uint32_t step_size = 1;
   DebuggerMode mode;
   std::queue<DebuggerCommand> command_queue;
 };
@@ -123,7 +125,9 @@ void emulator_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_sta
           debugger_state.mode = NORMAL;
           break;
         case STEP:
-          cycle(cpu, gpu, timer);
+          for (int i = 0; i < debugger_state.step_size; i++) {
+            cycle(cpu, gpu, timer);
+          }
           debugger_state.mode = DEBUG;
           break;
         case BREAK:
@@ -197,6 +201,9 @@ void cpu_debugger_window(CPU& cpu, DebuggerState& debugger_state) {
     // Breakpoint.
     ImGui::InputScalar("Breakpoint", ImGuiDataType_U32, &debugger_state.breakpoint_address, 0, 0, "%08X", ImGuiInputTextFlags_CharsHexadecimal);
 
+    // Step size.
+    ImGui::InputScalar("Step Size", ImGuiDataType_U32, &debugger_state.step_size, 0, 0, "%d", ImGuiInputTextFlags_CharsDecimal);
+
     ImGui::Text("PC: 0x%08X", cpu.get_register_value(PC));
     for (int i = 0; i < 16; i++) {
       ImGui::Text("R%d: 0x%08X", i, cpu.get_register_value(i));
@@ -264,7 +271,7 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
       0,
       FRAME_WIDTH,
       FRAME_HEIGHT,
-      gpu.frameBuffer,
+      gpu.frame_buffer,
       FRAME_BUFFER_SIZE_BYTES,
       FRAME_BUFFER_PITCH
     );
@@ -278,6 +285,7 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
     palette_debugger_window(cpu);
     sprite_debugger_window(cpu);
     ram_debugger_window(cpu);
+    special_effects_debugger_window(cpu);
 
     gui->EndFrame();
 
