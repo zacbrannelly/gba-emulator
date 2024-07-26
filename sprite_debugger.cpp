@@ -223,7 +223,6 @@ void sprite_debugger_window(CPU& cpu) {
     );
 
     ImGui::Image(sprite_texture->GetHandle(), ImVec2(64 * 2, 64 * 2));
-
-    ImGui::End();
   }
+  ImGui::End();
 }

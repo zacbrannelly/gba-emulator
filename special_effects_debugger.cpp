@@ -55,7 +55,6 @@ void special_effects_debugger_window(CPU& cpu) {
     ImGui::Checkbox("BG3 Target 2", &bg3_target_2);
     ImGui::Checkbox("OBJ Target 2", &obj_target_2);
     ImGui::Checkbox("Backdrop Target 2", &bd_target_2);
-
-    ImGui::End();
   }
+  ImGui::End();
 }

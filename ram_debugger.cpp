@@ -18,9 +18,8 @@ void ram_debugger_window(CPU& cpu) {
 
     uint32_t word = ram_read_word_direct(cpu.ram, ram_debugger_address);
     ImGui::Text("Word: 0x%08X", word);
-
-    ImGui::End();
   }
+  ImGui::End();
 
   if (ImGui::Begin("Stack Debugger")) {
     ImGui::InputScalar("Stack Length", ImGuiDataType_U32, &stack_debugger_length, 0, 0, "%d", ImGuiInputTextFlags_CharsDecimal);
@@ -29,6 +28,6 @@ void ram_debugger_window(CPU& cpu) {
       uint32_t word = ram_read_word_direct(cpu.ram, stack_address);
       ImGui::Text("0x%08X: 0x%08X", stack_address, word);
     }
-    ImGui::End();
   }
+  ImGui::End();
 }

@@ -224,9 +224,8 @@ void cpu_debugger_window(CPU& cpu, DebuggerState& debugger_state) {
     ImGui::Text("Interrupt Master Enable: 0x%04X", reg_interrupt_master_enable);
 
     ImGui::Text("Cycle Count: %llu", cpu.cycle_count);
-
-    ImGui::End();
   }
+  ImGui::End();
 }
 
 void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
@@ -278,8 +277,8 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
 
     if (ImGui::Begin("GBA Emulator")) {
       ImGui::Image(frameTexture->GetHandle(), ImVec2(240 * 2, 160 * 2));
-      ImGui::End();
     }
+    ImGui::End();
 
     cpu_debugger_window(cpu, debugger_state);
     palette_debugger_window(cpu);

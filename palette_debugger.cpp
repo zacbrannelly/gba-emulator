@@ -71,7 +71,6 @@ void palette_debugger_window(CPU& cpu) {
     ImGui::Image(bg_palette_texture->GetHandle(), ImVec2(256, 256));
     ImGui::SameLine();
     ImGui::Image(sprite_palette_texture->GetHandle(), ImVec2(256, 256));
-
-    ImGui::End();
   }
+  ImGui::End();
 }

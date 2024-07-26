@@ -20,6 +20,10 @@ void cpu_arm_write_pc(CPU& cpu, uint32_t value) {
 void branch_and_exchange(uint8_t register_number, CPU& cpu) {
   uint32_t address = cpu.get_register_value(register_number);
 
+  if (register_number == PC) {
+    address += cpu.get_instruction_size() * 2;
+  }
+
   if (address & 0x1) {
     // Set the T bit (5th bit, State Bit) in the CPSR
     cpu.cspr |= CSPR_THUMB_STATE;
@@ -31,7 +35,7 @@ void branch_and_exchange(uint8_t register_number, CPU& cpu) {
     cpu.cspr &= ~CSPR_THUMB_STATE;
 
     // Make sure the last two bits are 0 (4-byte aligned)
-    cpu_arm_write_pc(cpu, address);
+    cpu.set_register_value(PC, address & ~0x3);
   }
 }
 
