@@ -77,7 +77,7 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
         uint16_t target_1_color = 0;
 
         // Get top most pixel and it's source.
-        for (int j = 3; j >= 0; j--) {
+        for (int j = 0; j < 4; j++) {
           uint16_t color = gpu.scanline_priority_buffers[j][i];
           if (color > 0) {
             target_1_priority = j;
@@ -95,7 +95,7 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
         uint16_t target_2_color = 0;
 
         // Get the next top most pixel and it's source.
-        for (int j = target_1_priority - 1; j >= 0; j--) {
+        for (int j = target_1_priority + 1; j < 4; j++) {
           uint16_t color = gpu.scanline_priority_buffers[j][i];
           if (color > 0) {
             target_2_priority = j;
@@ -151,7 +151,7 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
         uint16_t target_1_color = 0;
 
         // Get top most pixel and it's source.
-        for (int j = 3; j >= 0; j--) {
+        for (int j = 0; j < 4; j++) {
           uint16_t color = gpu.scanline_priority_buffers[j][i];
           if (color > 0) {
             target_1_color = color;
@@ -198,7 +198,7 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
 
 inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
   for (int i = 0; i < FRAME_WIDTH; i++) {
-    for (int j = 0; j < 4; j++) {
+    for (int j = 3; j >= 0; j--) {
       uint16_t color = gpu.scanline_priority_buffers[j][i];
       if (color > 0) {
         gpu.final_scanline_buffer[i] = color;
@@ -235,8 +235,8 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
   // Backdrop Layer
   // =================================================================================================
   for (uint32_t i = 0; i < FRAME_WIDTH; i++) {
-    gpu.scanline_priority_buffers[0][i] = backdrop_color;
-    gpu.scanline_priority_pixel_sources[0][i] = PIXEL_SOURCE_BACKDROP;
+    gpu.scanline_priority_buffers[3][i] = backdrop_color;
+    gpu.scanline_priority_pixel_sources[3][i] = PIXEL_SOURCE_BACKDROP;
   }
 
   // =================================================================================================
