@@ -30,6 +30,33 @@ static constexpr int TARGET_LAYER_BG3 = 3;
 static constexpr int TARGET_LAYER_OBJ = 4;
 static constexpr int TARGET_LAYER_BACKDROP = 5;
 
+inline void gpu_clear_scanline_buffers(GPU& gpu) {
+  // Reset layer buffers.
+  memset(gpu.final_scanline_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
+  for (int i = 0; i < 4; i++) {
+    memset(gpu.scanline_priority_buffers[i], 0, FRAME_WIDTH * sizeof(uint16_t));
+    for (int j = 0; j < FRAME_WIDTH; j++) {
+      gpu.scanline_priority_pixel_sources[i][j] = PIXEL_SOURCE_NONE;
+    }
+  }
+  memset(gpu.scanline_obj_window_buffer, 0, FRAME_WIDTH * sizeof(bool));
+  for (int i = 0; i < FRAME_WIDTH; i++) {
+    gpu.final_scanline_pixel_sources[i] = PIXEL_SOURCE_NONE;
+  }
+}
+
+inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
+  for (int i = 0; i < FRAME_WIDTH; i++) {
+    for (int j = 3; j >= 0; j--) {
+      uint16_t color = gpu.scanline_priority_buffers[j][i];
+      if (color > 0) {
+        gpu.final_scanline_buffer[i] = color;
+        gpu.final_scanline_pixel_sources[i] = gpu.scanline_priority_pixel_sources[j][i];
+      }
+    }
+  }
+}
+
 inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
   uint16_t special_effects_control = ram_read_half_word_from_io_registers_fast<REG_BLDCNT>(cpu.ram);
 
@@ -196,24 +223,38 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
   }
 }
 
-inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
-  for (int i = 0; i < FRAME_WIDTH; i++) {
-    for (int j = 3; j >= 0; j--) {
-      uint16_t color = gpu.scanline_priority_buffers[j][i];
-      if (color > 0) {
-        gpu.final_scanline_buffer[i] = color;
-      }
-    }
-  }
-}
+inline void gpu_apply_window_effect(CPU& cpu, GPU& gpu) {
+  uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
+  uint16_t outside_window = ram_read_half_word_from_io_registers_fast<REG_WINDOW_OUTSIDE>(cpu.ram);
 
-inline void gpu_clear_scanline_buffers(GPU& gpu) {
-  // Reset layer buffers.
-  memset(gpu.final_scanline_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
-  for (int i = 0; i < 4; i++) {
-    memset(gpu.scanline_priority_buffers[i], 0, FRAME_WIDTH * sizeof(uint16_t));
-    for (int j = 0; j < FRAME_WIDTH; j++) {
-      gpu.scanline_priority_pixel_sources[i][j] = PIXEL_SOURCE_NONE;
+  bool layer_enabled_outside_window[6] = {
+    (outside_window & 1) > 0,
+    (outside_window & (1 << 1)) > 0,
+    (outside_window & (1 << 2)) > 0,
+    (outside_window & (1 << 3)) > 0,
+    (outside_window & (1 << 4)) > 0,
+    (outside_window & (1 << 5)) > 0
+  };
+
+  // TODO: Window 0
+
+  // TODO: Window 1
+
+  // OBJ Window
+  bool obj_window_enabled = disp_cnt & (1 << 15);
+  uint16_t* bg_palette_ram = (uint16_t*)(cpu.ram.palette_ram);
+  uint16_t backdrop_color = bg_palette_ram[0] | ENABLE_PIXEL;
+
+  if (!obj_window_enabled) return;
+
+  for (int i = 0; i < FRAME_WIDTH; i++) {
+    // Skip masking pixels from layers that are enabled outside of windows.
+    auto pixel_source = (int)gpu.final_scanline_pixel_sources[i] - 1;
+    if (layer_enabled_outside_window[pixel_source]) continue;
+
+    if (!gpu.scanline_obj_window_buffer[i]) {
+      gpu.final_scanline_buffer[i] = backdrop_color;
+      gpu.final_scanline_pixel_sources[i] = PIXEL_SOURCE_BACKDROP;
     }
   }
 }
@@ -343,6 +384,7 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
     uint8_t center_x_screen_space = x_coord + half_width;
     uint8_t center_y_screen_space = y_coord + half_height;
 
+    OBJMode obj_mode = (OBJMode)((attr0 >> 10) & 0x3);
     uint8_t priority = (attr2 >> 10) & 0x3;
 
     int iy = y_in_draw_area - half_height;
@@ -408,8 +450,12 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
           continue;
         }
 
-        gpu.scanline_priority_buffers[priority][x] = color;
-        gpu.scanline_priority_pixel_sources[priority][x] = PIXEL_SOURCE_OBJ;
+        if (obj_mode != OBJ_MODE_WINDOW) {
+          gpu.scanline_priority_buffers[priority][x] = color;
+          gpu.scanline_priority_pixel_sources[priority][x] = PIXEL_SOURCE_OBJ;
+        } else {
+          gpu.scanline_obj_window_buffer[x] = true;
+        }
       } else {
         // TODO: This code path is untested.
         uint8_t palette_indices = current_tile[texture_y_in_tile * HALF_TILE_SIZE + texture_x_in_tile / 2];
@@ -417,15 +463,23 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
         uint16_t color_right = sprite_palette_ram[palette_indices >> 4];
 
         if (color_left > 0) {
-          color_left |= ENABLE_PIXEL;
-          gpu.scanline_priority_buffers[priority][x] = color_left;
-          gpu.scanline_priority_pixel_sources[priority][x] = PIXEL_SOURCE_OBJ;
+          if (obj_mode != OBJ_MODE_WINDOW) {
+            color_left |= ENABLE_PIXEL;
+            gpu.scanline_priority_buffers[priority][x] = color_left;
+            gpu.scanline_priority_pixel_sources[priority][x] = PIXEL_SOURCE_OBJ;
+          } else {
+            gpu.scanline_obj_window_buffer[x] = true;
+          }
         }
 
         if (color_right > 0) {
-          color_right |= ENABLE_PIXEL;
-          gpu.scanline_priority_buffers[priority][x + 1] = color_right;
-          gpu.scanline_priority_pixel_sources[priority][x + 1] = PIXEL_SOURCE_OBJ;
+          if (obj_mode != OBJ_MODE_WINDOW) {
+            color_right |= ENABLE_PIXEL;
+            gpu.scanline_priority_buffers[priority][x + 1] = color_right;
+            gpu.scanline_priority_pixel_sources[priority][x + 1] = PIXEL_SOURCE_OBJ;
+          } else {
+            gpu.scanline_obj_window_buffer[x + 1] = true;
+          }
         }
       }
     }
@@ -436,6 +490,9 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
 
   // Apply Special Effects
   gpu_apply_special_effects(cpu, gpu);
+
+  // Apply Window Effect
+  gpu_apply_window_effect(cpu, gpu);
 
   // Copy the final scanline buffer to the frame buffer.
   uint32_t frame_buffer_offset = scanline * FRAME_WIDTH;

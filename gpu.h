@@ -18,11 +18,20 @@ enum PixelSource {
   PIXEL_SOURCE_BACKDROP = 6
 };
 
+enum OBJMode {
+  OBJ_MODE_REGULAR_SPRITE = 0,
+  OBJ_MODE_AFFINE_SPRITE = 1,
+  OBJ_MODE_WINDOW = 2,
+  OBJ_MODE_PROHIBITED = 3
+};
+
 struct GPU {
+  bool scanline_obj_window_buffer[FRAME_WIDTH];
   uint16_t scanline_priority_buffers[4][FRAME_WIDTH];
   PixelSource scanline_priority_pixel_sources[4][FRAME_WIDTH];
 
   uint16_t final_scanline_buffer[FRAME_WIDTH];
+  PixelSource final_scanline_pixel_sources[FRAME_WIDTH];
   uint16_t frame_buffer[FRAME_BUFFER_SIZE];
 };
 

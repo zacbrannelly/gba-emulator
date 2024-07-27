@@ -33,6 +33,22 @@ void sprite_debugger_window(CPU& cpu) {
     ImGui::Text("Attributes 1: 0x%04X", attr1);
     ImGui::Text("Attributes 2: 0x%04X", attr2);
 
+    uint8_t obj_mode = (attr0 >> 10) & 0x3;
+    switch (obj_mode) {
+      case 0:
+        ImGui::Text("Mode: Regular Sprite");
+        break;
+      case 1:
+        ImGui::Text("Mode: Affine Sprite");
+        break;
+      case 2:
+        ImGui::Text("Mode: Window");
+        break;
+      case 3:
+        ImGui::Text("Mode: Prohibited");
+        break;
+    }
+
     uint16_t x_coord = attr1 & 0x1FF;
     uint16_t y_coord = attr0 & 0xFF;
 
