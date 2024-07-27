@@ -2296,7 +2296,8 @@ void execute_arm_instruction(CPU& cpu, uint32_t instruction) {
 
   if (
     (opcode & ARM_SINGLE_DATA_SWAP_OPCODE) == ARM_SINGLE_DATA_SWAP_OPCODE &&
-    (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) == 0
+    (opcode & ARM_HALFWORD_DATA_TRANSFER_SH_MASK) == 0 &&
+    ((opcode >> 23) & 0x1F) == 2
   ) {
     decode_single_data_swap(cpu, opcode);
     return;
