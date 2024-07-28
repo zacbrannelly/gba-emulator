@@ -22,11 +22,11 @@ TEST_CASE("Conditional Execution", "[arm, conditionals]") {
     cpu.registers[PC] = 0;
 
     // EQ - Z == 1
-    cpu.cspr = CSPR_Z | (uint32_t)User;
+    cpu.cpsr = CPSR_Z | (uint32_t)User;
     test_instruction(cpu, 1);
 
     // NE - Z == 0
-    cpu.cspr = (uint32_t)User;
+    cpu.cpsr = (uint32_t)User;
     test_instruction(cpu, 0);
 
   }
@@ -35,11 +35,11 @@ TEST_CASE("Conditional Execution", "[arm, conditionals]") {
     cpu.registers[PC] = 8;
 
     // CS - C == 1
-    cpu.cspr = CSPR_C | (uint32_t)User;
+    cpu.cpsr = CPSR_C | (uint32_t)User;
     test_instruction(cpu, 1);
 
     // CC - C == 0
-    cpu.cspr = (uint32_t)User;
+    cpu.cpsr = (uint32_t)User;
     test_instruction(cpu, 0);
   }
 
@@ -47,11 +47,11 @@ TEST_CASE("Conditional Execution", "[arm, conditionals]") {
     cpu.registers[PC] = 16;
 
     // MI - N == 1
-    cpu.cspr = CSPR_N | (uint32_t)User;
+    cpu.cpsr = CPSR_N | (uint32_t)User;
     test_instruction(cpu, 1);
 
     // PL - N == 0
-    cpu.cspr = (uint32_t)User;
+    cpu.cpsr = (uint32_t)User;
     test_instruction(cpu, 0);
   }
 
@@ -59,11 +59,11 @@ TEST_CASE("Conditional Execution", "[arm, conditionals]") {
     cpu.registers[PC] = 24;
 
     // VS - V == 1
-    cpu.cspr = CSPR_V | (uint32_t)User;
+    cpu.cpsr = CPSR_V | (uint32_t)User;
     test_instruction(cpu, 1);
 
     // VC - V == 0
-    cpu.cspr = (uint32_t)User;
+    cpu.cpsr = (uint32_t)User;
     test_instruction(cpu, 0);
   }
 
@@ -71,18 +71,18 @@ TEST_CASE("Conditional Execution", "[arm, conditionals]") {
     cpu.registers[PC] = 32;
 
     // HI - C == 1 && Z == 0
-    cpu.cspr = CSPR_C | (uint32_t)User;
+    cpu.cpsr = CPSR_C | (uint32_t)User;
     test_instruction(cpu, 1);
 
     // LS - C == 0 || Z == 1
-    cpu.cspr = (uint32_t)User;
+    cpu.cpsr = (uint32_t)User;
     test_instruction(cpu, 0);
 
     // Rolling back to the previous instruction
     cpu.set_register_value(PC, cpu.get_register_value(PC) - 4);
 
     // LS - C == 0 || Z == 1
-    cpu.cspr = CSPR_Z | (uint32_t)User;
+    cpu.cpsr = CPSR_Z | (uint32_t)User;
     test_instruction(cpu, 0);
   }
 
@@ -90,25 +90,25 @@ TEST_CASE("Conditional Execution", "[arm, conditionals]") {
     cpu.registers[PC] = 40;
 
     // GE - N == V
-    cpu.cspr = CSPR_N | CSPR_V | (uint32_t)User;
+    cpu.cpsr = CPSR_N | CPSR_V | (uint32_t)User;
     test_instruction(cpu, 1);
 
     // Rolling back to the previous instruction
     cpu.set_register_value(PC, cpu.get_register_value(PC) - 4);
 
     // GE - N == V
-    cpu.cspr = (uint32_t)User;
+    cpu.cpsr = (uint32_t)User;
     test_instruction(cpu, 1);
 
     // LT - N != V
-    cpu.cspr = CSPR_N | (uint32_t)User;
+    cpu.cpsr = CPSR_N | (uint32_t)User;
     test_instruction(cpu, 0);
 
     // Rolling back to the previous instruction
     cpu.set_register_value(PC, cpu.get_register_value(PC) - 4);
 
     // LT - N != V
-    cpu.cspr = CSPR_V | (uint32_t)User;
+    cpu.cpsr = CPSR_V | (uint32_t)User;
     test_instruction(cpu, 0);
   }
 
@@ -116,11 +116,11 @@ TEST_CASE("Conditional Execution", "[arm, conditionals]") {
     cpu.registers[PC] = 48;
 
     // GT - Z == 0 && N == V
-    cpu.cspr = CSPR_N | CSPR_V | (uint32_t)User;
+    cpu.cpsr = CPSR_N | CPSR_V | (uint32_t)User;
     test_instruction(cpu, 1);
 
     // LE - Z == 1 || N != V
-    cpu.cspr = CSPR_Z | CSPR_N | (uint32_t)User;
+    cpu.cpsr = CPSR_Z | CPSR_N | (uint32_t)User;
     test_instruction(cpu, 0);
   }
 

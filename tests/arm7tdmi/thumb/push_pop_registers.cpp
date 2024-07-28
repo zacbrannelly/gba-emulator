@@ -13,7 +13,7 @@ TEST_CASE("Push/Pop Registers", "[thumb, push-pop-registers]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/push_pop_registers.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("PUSH") {
     cpu.set_register_value(PC, 0x0);

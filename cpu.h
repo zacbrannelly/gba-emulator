@@ -81,7 +81,7 @@ enum ConditionCodes {
   NV = 0b1111  // Reserved, Ignore
 };
 
-// CSPR - Current Program Status Register
+// CPSR - Current Program Status Register
 // Bit 31 - N (Negative / Less Than)
 // Bit 30 - Z (Zero)
 // Bit 29 - C (Carry / Borrow / Extend)
@@ -90,14 +90,14 @@ enum ConditionCodes {
 // Bit 7 - IRQ Interrupt Disable
 // Bit 6 - FIQ Interrupt Disable
 // Bit 5 - State bit (Tbit, 0 = ARM, 1 = THUMB)
-static constexpr uint32_t CSPR_N = 1 << 31;
-static constexpr uint32_t CSPR_Z = 1 << 30;
-static constexpr uint32_t CSPR_C = 1 << 29;
-static constexpr uint32_t CSPR_V = 1 << 28;
-static constexpr uint32_t CSPR_IRQ_DISABLE = 1 << 7;
-static constexpr uint32_t CSPR_FIQ_DISABLE = 1 << 6;
-static constexpr uint32_t CSPR_THUMB_STATE = 1 << 5;
-static constexpr uint32_t CSPR_MODE_MASK = 0x1F;
+static constexpr uint32_t CPSR_N = 1 << 31;
+static constexpr uint32_t CPSR_Z = 1 << 30;
+static constexpr uint32_t CPSR_C = 1 << 29;
+static constexpr uint32_t CPSR_V = 1 << 28;
+static constexpr uint32_t CPSR_IRQ_DISABLE = 1 << 7;
+static constexpr uint32_t CPSR_FIQ_DISABLE = 1 << 6;
+static constexpr uint32_t CPSR_THUMB_STATE = 1 << 5;
+static constexpr uint32_t CPSR_MODE_MASK = 0x1F;
 
 enum SpecialRegisters {
   SP = 13, // Stack Pointer
@@ -171,7 +171,7 @@ struct CPU {
     {Undefined, 4}
   };
 
-  // CSPR - Current Program Status Register
+  // CPSR - Current Program Status Register
   // Bit 31 - N (Negative / Less Than)
   // Bit 30 - Z (Zero)
   // Bit 29 - C (Carry / Borrow / Extend)
@@ -181,8 +181,8 @@ struct CPU {
   // Bit 6 - FIQ Interrupt Disable
   // Bit 5 - State bit (Tbit, 0 = ARM, 1 = THUMB)
   // Bit 4-0 - Mode bits (5 bits, see CPUOperatingMode)
-  uint32_t cspr = (uint32_t)System | CSPR_FIQ_DISABLE;
-  std::unordered_map<uint8_t, uint32_t> mode_to_scspr = {
+  uint32_t cpsr = (uint32_t)System | CPSR_FIQ_DISABLE;
+  std::unordered_map<uint8_t, uint32_t> mode_to_scpsr = {
     {FIQ, 0},
     {IRQ, 0},
     {Supervisor, 0},
@@ -200,7 +200,7 @@ struct CPU {
   };
 
   uint32_t get_register_value(uint8_t reg) {
-    uint8_t mode = cspr & 0x1F;
+    uint8_t mode = cpsr & 0x1F;
     switch (mode) {
       case FIQ:
         if (reg >= 8 && reg <= 14) {
@@ -219,7 +219,7 @@ struct CPU {
   }
 
   void set_register_value(uint8_t reg, uint32_t value) {
-    uint8_t mode = cspr & 0x1F;
+    uint8_t mode = cpsr & 0x1F;
     switch (mode) {
       case FIQ:
         if (reg >= 8 && reg <= 14) {
@@ -240,7 +240,7 @@ struct CPU {
   }
 
   uint8_t get_instruction_size() {
-    return cspr & CSPR_THUMB_STATE ? THUMB_INSTRUCTION_SIZE : ARM_INSTRUCTION_SIZE;
+    return cpsr & CPSR_THUMB_STATE ? THUMB_INSTRUCTION_SIZE : ARM_INSTRUCTION_SIZE;
   }
 
   void increment_pc() {

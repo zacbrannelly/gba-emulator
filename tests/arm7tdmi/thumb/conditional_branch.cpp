@@ -13,14 +13,14 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/conditional_branch.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("BEQ") {
     cpu.set_register_value(PC, 0x0);
 
     // beq to instruction at 28
     // EQ (Z == 1)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 2);
@@ -29,7 +29,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // beq to instruction at 28
     // EQ (Z == 1)
-    cpu.cspr = (uint32_t)User | CSPR_Z | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_Z | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -40,7 +40,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bne to instruction at 28
     // NE (Z == 0)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -49,7 +49,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bne to instruction at 28
     // NE (Z == 0)
-    cpu.cspr = (uint32_t)User | CSPR_Z | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_Z | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 4);
@@ -60,7 +60,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bcs to instruction at 28
     // CS (C == 1)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 6);
@@ -69,7 +69,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bcs to instruction at 28
     // CS (C == 1)
-    cpu.cspr = (uint32_t)User | CSPR_C | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_C | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -80,7 +80,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bcc to instruction at 28
     // CC (C == 0)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -89,7 +89,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bcc to instruction at 28
     // CC (C == 0)
-    cpu.cspr = (uint32_t)User | CSPR_C | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_C | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 8);
@@ -100,7 +100,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bmi to instruction at 28
     // MI (N == 1)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 10);
@@ -109,7 +109,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bmi to instruction at 28
     // MI (N == 1)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -120,7 +120,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bpl to instruction at 28
     // PL (N == 0)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -129,7 +129,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bpl to instruction at 28
     // PL (N == 0)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 12);
@@ -140,7 +140,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bvs to instruction at 28
     // VS (V == 1)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 14);
@@ -149,7 +149,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bvs to instruction at 28
     // VS (V == 1)
-    cpu.cspr = (uint32_t)User | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -160,7 +160,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bvc to instruction at 28
     // VC (V == 0)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -169,7 +169,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bvc to instruction at 28
     // VC (V == 0)
-    cpu.cspr = (uint32_t)User | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 16);
@@ -180,7 +180,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bhi to instruction at 28
     // HI (C == 1 && Z == 0)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 18);
@@ -189,7 +189,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bhi to instruction at 28
     // HI (C == 1 && Z == 0)
-    cpu.cspr = (uint32_t)User | CSPR_C | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_C | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -198,7 +198,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bhi to instruction at 28
     // HI (C == 1 && Z == 0)
-    cpu.cspr = (uint32_t)User | CSPR_Z | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_Z | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 18);
@@ -207,7 +207,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bhi to instruction at 28
     // HI (C == 1 && Z == 0)
-    cpu.cspr = (uint32_t)User | CSPR_C | CSPR_Z | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_C | CPSR_Z | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 18);
@@ -218,7 +218,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bls to instruction at 28
     // LS (C == 0 || Z == 1)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -227,7 +227,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bls to instruction at 28
     // LS (C == 0 || Z == 1)
-    cpu.cspr = (uint32_t)User | CSPR_C | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_C | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 20);
@@ -236,7 +236,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bls to instruction at 28
     // LS (C == 0 || Z == 1)
-    cpu.cspr = (uint32_t)User | CSPR_Z | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_Z | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -245,7 +245,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bls to instruction at 28
     // LS (C == 0 || Z == 1)
-    cpu.cspr = (uint32_t)User | CSPR_C | CSPR_Z | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_C | CPSR_Z | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -256,7 +256,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bge to instruction at 28
     // GE (N == V)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -265,7 +265,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bge to instruction at 28
     // GE (N == V)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -274,7 +274,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bge to instruction at 28
     // GE (N == V)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 22);
@@ -283,7 +283,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bge to instruction at 28
     // GE (N == V)
-    cpu.cspr = (uint32_t)User | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 22);
@@ -294,7 +294,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // blt to instruction at 28
     // LT (N != V)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 24);
@@ -303,7 +303,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // blt to instruction at 28
     // LT (N != V)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 24);
@@ -312,7 +312,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // blt to instruction at 28
     // LT (N != V)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -321,7 +321,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // blt to instruction at 28
     // LT (N != V)
-    cpu.cspr = (uint32_t)User | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -332,7 +332,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bgt to instruction at 28
     // GT (!Z && N == V)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -341,7 +341,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bgt to instruction at 28
     // GT (!Z && N == V)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -350,7 +350,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bgt to instruction at 28
     // GT (!Z && N == V)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 26);
@@ -359,7 +359,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bgt to instruction at 28
     // GT (!Z && N == V)
-    cpu.cspr = (uint32_t)User | CSPR_Z | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_Z | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 26);
@@ -368,7 +368,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // bgt to instruction at 28
     // GT (!Z && N == V)
-    cpu.cspr = (uint32_t)User | CSPR_Z | CSPR_N | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_Z | CPSR_N | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 26);
@@ -379,7 +379,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // ble to instruction at 28
     // LE (Z || N != V)
-    cpu.cspr = (uint32_t)User | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 0x1C);
@@ -388,7 +388,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // ble to instruction at 28
     // LE (Z || N != V)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 0x1C);
@@ -397,7 +397,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // ble to instruction at 28
     // LE (Z || N != V)
-    cpu.cspr = (uint32_t)User | CSPR_N | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_N | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -406,7 +406,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // ble to instruction at 28
     // LE (Z || N != V)
-    cpu.cspr = (uint32_t)User | CSPR_Z | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_Z | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);
@@ -415,7 +415,7 @@ TEST_CASE("Conditional Branch", "[thumb, conditional-branch]") {
 
     // ble to instruction at 28
     // LE (Z || N != V)
-    cpu.cspr = (uint32_t)User | CSPR_Z | CSPR_N | CSPR_V | CSPR_THUMB_STATE;
+    cpu.cpsr = (uint32_t)User | CPSR_Z | CPSR_N | CPSR_V | CPSR_THUMB_STATE;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 28);

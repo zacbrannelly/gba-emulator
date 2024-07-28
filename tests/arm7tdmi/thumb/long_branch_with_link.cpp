@@ -13,7 +13,7 @@ TEST_CASE("Long Branch w/ Link", "[thumb, long-branch-with-link]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/long_branch_with_link.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("BL") {
     cpu.set_register_value(PC, 0x0);

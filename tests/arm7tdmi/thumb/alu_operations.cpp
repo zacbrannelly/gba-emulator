@@ -13,7 +13,7 @@ TEST_CASE("ALU Operations", "[thumb, alu-operations]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/alu_operations.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("AND") {
     cpu.set_register_value(PC, 0x0);
@@ -81,7 +81,7 @@ TEST_CASE("ALU Operations", "[thumb, alu-operations]") {
     // adc rd, rs
     cpu.set_register_value(0, 0b1011);
     cpu.set_register_value(1, 0b1101);
-    cpu.cspr |= CSPR_C;
+    cpu.cpsr |= CPSR_C;
     cpu_cycle(cpu);
 
     uint32_t expected = 0b1011 + 0b1101 + 1;
@@ -121,7 +121,7 @@ TEST_CASE("ALU Operations", "[thumb, alu-operations]") {
     cpu.set_register_value(1, 0b1101);
     cpu_cycle(cpu);
 
-    bool result = cpu.cspr & CSPR_Z;
+    bool result = cpu.cpsr & CPSR_Z;
     REQUIRE_FALSE(result);
 
     cpu.set_register_value(PC, 0x10);
@@ -131,7 +131,7 @@ TEST_CASE("ALU Operations", "[thumb, alu-operations]") {
     cpu.set_register_value(1, 0b1011);
     cpu_cycle(cpu);
 
-    result = cpu.cspr & CSPR_Z;
+    result = cpu.cpsr & CPSR_Z;
     REQUIRE(result);
   }
 
@@ -154,7 +154,7 @@ TEST_CASE("ALU Operations", "[thumb, alu-operations]") {
     cpu.set_register_value(1, 0b1101);
     cpu_cycle(cpu);
 
-    bool result = cpu.cspr & CSPR_Z;
+    bool result = cpu.cpsr & CPSR_Z;
     REQUIRE_FALSE(result);
 
     cpu.set_register_value(PC, 0x14);
@@ -164,7 +164,7 @@ TEST_CASE("ALU Operations", "[thumb, alu-operations]") {
     cpu.set_register_value(1, 0b1011);
     cpu_cycle(cpu);
 
-    result = cpu.cspr & CSPR_Z;
+    result = cpu.cpsr & CPSR_Z;
     REQUIRE(result);
   }
 
@@ -177,7 +177,7 @@ TEST_CASE("ALU Operations", "[thumb, alu-operations]") {
     cpu_cycle(cpu);
 
     // 1 + 1 = 2
-    bool result = cpu.cspr & CSPR_Z;
+    bool result = cpu.cpsr & CPSR_Z;
     REQUIRE_FALSE(result); // Z (Zero) flag should not be set.
 
     // cmn r0, r1
@@ -187,7 +187,7 @@ TEST_CASE("ALU Operations", "[thumb, alu-operations]") {
     cpu_cycle(cpu);
 
     // 1 + -1 = 0
-    result = cpu.cspr & CSPR_Z;
+    result = cpu.cpsr & CPSR_Z;
     REQUIRE(result); // Z (Zero) flag should be set.
   }
 

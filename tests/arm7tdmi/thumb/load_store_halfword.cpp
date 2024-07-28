@@ -13,7 +13,7 @@ TEST_CASE("Load/Store Halfword w/ Immediate Offset", "[thumb, load-store-halfwor
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/load_store_halfword.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("STR") {
     cpu.set_register_value(PC, 0x0);

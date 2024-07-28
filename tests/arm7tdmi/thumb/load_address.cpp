@@ -13,7 +13,7 @@ TEST_CASE("Load address relative to PC/SP", "[thumb, load-address]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/load_address.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("Load address relative to PC") {
     cpu.set_register_value(PC, 0x0);

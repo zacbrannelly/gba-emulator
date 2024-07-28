@@ -11,7 +11,7 @@ TEST_CASE("Move Shifted Register", "[thumb, move-shifted-register]") {
   cpu.ram.enable_rom_write_protection = false;
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("MOV (shifted register)") {
     REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/move_shifted_register.bin"));

@@ -13,7 +13,7 @@ TEST_CASE("Multiple Load/Store", "[thumb, multiple-load-store]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/multiple_load_store.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("STMIA") {
     cpu.set_register_value(PC, 0x0);

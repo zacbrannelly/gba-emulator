@@ -26,13 +26,13 @@ void branch_and_exchange(uint8_t register_number, CPU& cpu) {
 
   if (address & 0x1) {
     // Set the T bit (5th bit, State Bit) in the CPSR
-    cpu.cspr |= CSPR_THUMB_STATE;
+    cpu.cpsr |= CPSR_THUMB_STATE;
 
     // Make sure the last bit is 0 (2-byte aligned)
     cpu.set_register_value(PC, address & ~0x1);
   } else {
     // Reset the T bit (5th bit, State Bit) in the CPSR
-    cpu.cspr &= ~CSPR_THUMB_STATE;
+    cpu.cpsr &= ~CPSR_THUMB_STATE;
 
     // Make sure the last two bits are 0 (4-byte aligned)
     cpu.set_register_value(PC, address & ~0x3);
@@ -152,9 +152,9 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
         uint8_t last_bit = overflow_shift 
           ? 0 
           : (value >> (32 - shift_amount)) & 0x1;
-        cpu.cspr = last_bit 
-          ? cpu.cspr | 0x20000000 
-          : cpu.cspr & ~0x20000000;
+        cpu.cpsr = last_bit 
+          ? cpu.cpsr | 0x20000000 
+          : cpu.cpsr & ~0x20000000;
       }
       return overflow_shift ? 0 : value << shift_amount;
     }
@@ -164,9 +164,9 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
         uint8_t last_bit = overflow_shift
           ? 0
           : (value >> (shift_amount - 1)) & 0x1;
-        cpu.cspr = last_bit 
-          ? cpu.cspr | 0x20000000 
-          : cpu.cspr & ~0x20000000;
+        cpu.cpsr = last_bit 
+          ? cpu.cpsr | 0x20000000 
+          : cpu.cpsr & ~0x20000000;
       }
       return overflow_shift ? 0 : value >> shift_amount;
     }
@@ -177,9 +177,9 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
         uint8_t last_bit = overflow_shift
           ? signed_value >> 31
           : (value >> (shift_amount - 1)) & 0x1;
-        cpu.cspr = last_bit 
-          ? cpu.cspr | 0x20000000 
-          : cpu.cspr & ~0x20000000;
+        cpu.cpsr = last_bit 
+          ? cpu.cpsr | 0x20000000 
+          : cpu.cpsr & ~0x20000000;
       }
       return overflow_shift 
         ? (signed_value < 0 ? -1 : 0)
@@ -188,14 +188,14 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
     case ROTATE_RIGHT: {
       if (is_rotate_right_extended) {
         // Fetch the previous Carry flag
-        uint8_t carry = (cpu.cspr & 0x20000000) ? 1 : 0;
+        uint8_t carry = (cpu.cpsr & 0x20000000) ? 1 : 0;
 
         if constexpr (SetFlags) {
           // Set the Carry flag to the last bit shifted out
           uint8_t last_bit = value & 0x1;
-          cpu.cspr = last_bit 
-            ? cpu.cspr | 0x20000000 
-            : cpu.cspr & ~0x20000000;
+          cpu.cpsr = last_bit 
+            ? cpu.cpsr | 0x20000000 
+            : cpu.cpsr & ~0x20000000;
         }
         
         // Perform the RRX operation - shift right by 1 and set the last bit to the previous Carry flag
@@ -204,9 +204,9 @@ uint32_t shift(CPU& cpu, uint32_t value, uint8_t shift_amount, uint8_t shift_typ
         if constexpr (SetFlags) {
           // Set the Carry flag to the last bit shifted out
           uint8_t last_bit = (value >> (shift_amount - 1)) & 0x1;
-          cpu.cspr = last_bit 
-            ? cpu.cspr | 0x20000000 
-            : cpu.cspr & ~0x20000000;
+          cpu.cpsr = last_bit 
+            ? cpu.cpsr | 0x20000000 
+            : cpu.cpsr & ~0x20000000;
         }
         return (value >> shift_amount) | (value << (32 - shift_amount));
       }
@@ -265,19 +265,19 @@ uint32_t apply_rotate_operation(CPU& cpu, uint16_t operand_2) {
 }
 
 template<typename ResultType = uint32_t, typename SignedType = int32_t>
-void update_negative_and_zero_cspr_flags(CPU& cpu, ResultType result) {
+void update_negative_and_zero_cpsr_flags(CPU& cpu, ResultType result) {
   // Set the Negative/Less Than flag if the result is negative
   if ((SignedType)result < 0) {
-    cpu.cspr |= 0x80000000;
+    cpu.cpsr |= 0x80000000;
   } else {
-    cpu.cspr &= ~0x80000000;
+    cpu.cpsr &= ~0x80000000;
   }
 
   // Set the Zero flag if the result is zero
   if (result == 0) {
-    cpu.cspr |= 0x40000000;
+    cpu.cpsr |= 0x40000000;
   } else {
-    cpu.cspr &= ~0x40000000;
+    cpu.cpsr &= ~0x40000000;
   }
 }
 
@@ -286,9 +286,9 @@ void and_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destinatio
   cpu.set_register_value(destination_register, operand_1 & operand_2);
 
   if (SetFlags) {
-    // Update the CSPR flags (only N and Z, C and V are not updated)
+    // Update the CPSR flags (only N and Z, C and V are not updated)
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
   }
 }
 
@@ -297,9 +297,9 @@ void exclusive_or_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t d
   cpu.set_register_value(destination_register, operand_1 ^ operand_2);
 
   if constexpr (SetFlags) {
-    // Update the CSPR flags (only N and Z, C and V are not updated)
+    // Update the CPSR flags (only N and Z, C and V are not updated)
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
   }
 }
 
@@ -308,25 +308,25 @@ void subtract_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t desti
   cpu.set_register_value(destination_register, operand_1 - operand_2);
 
   if constexpr (SetFlags) {
-    // Update the CSPR flags
+    // Update the CPSR flags
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
 
     // Update the Carry flag
     // Carry flag is set if no borrow is needed
     // If operand_1 > operand_2, then then no borrow is needed.
     if (operand_1 >= operand_2) {
-      cpu.cspr |= 0x20000000;
+      cpu.cpsr |= 0x20000000;
     } else {
-      cpu.cspr &= ~0x20000000;
+      cpu.cpsr &= ~0x20000000;
     }
 
     // Update the Overflow flag
     // sign(operand_1) != sign(operand_2) and sign(result) != sign(operand_1)
     if ((operand_1 ^ operand_2) & 0x80000000 && (operand_1 ^ result) & 0x80000000) {
-      cpu.cspr |= 0x10000000;
+      cpu.cpsr |= 0x10000000;
     } else {
-      cpu.cspr &= ~0x10000000;
+      cpu.cpsr &= ~0x10000000;
     }
   }
 }
@@ -341,67 +341,67 @@ void add_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destinatio
   cpu.set_register_value(destination_register, operand_1 + operand_2);
 
   if constexpr (SetFlags) {
-    // Update the CSPR flags
+    // Update the CPSR flags
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
 
     // Update the Carry flag
     // Carry flag is set if the result is less than either operand
     // Just checking one of the operands is enough
     if (result < operand_1) {
-      cpu.cspr |= 0x20000000;
+      cpu.cpsr |= 0x20000000;
     } else {
-      cpu.cspr &= ~0x20000000;
+      cpu.cpsr &= ~0x20000000;
     }
 
     // Update the Overflow flag
     // sign(operand_1) == sign(operand_2) and sign(result) != sign(operand_1)
     if (((operand_1 ^ operand_2) & 0x80000000) == 0 && ((operand_1 ^ result) & 0x80000000)) {
-      cpu.cspr |= 0x10000000;
+      cpu.cpsr |= 0x10000000;
     } else {
-      cpu.cspr &= ~0x10000000;
+      cpu.cpsr &= ~0x10000000;
     }
   }
 }
 
 template<bool SetFlags = false>
 void add_with_carry_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  uint32_t carry = (cpu.cspr & 0x20000000) ? 1 : 0;
+  uint32_t carry = (cpu.cpsr & 0x20000000) ? 1 : 0;
   cpu.set_register_value(destination_register, operand_1 + operand_2 + carry);
 
   if constexpr (SetFlags) {
-    // Update the CSPR flags
+    // Update the CPSR flags
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
 
     // Update the Carry flag
     // Carry flag is set if the result is less than either operand
     // Just checking one of the operands is enough
     if (result < operand_1) {
-      cpu.cspr |= 0x20000000;
+      cpu.cpsr |= 0x20000000;
     } else {
-      cpu.cspr &= ~0x20000000;
+      cpu.cpsr &= ~0x20000000;
     }
 
     // Update the Overflow flag
     // sign(operand_1) == sign(operand_2) and sign(result) != sign(operand_1)
     if (((operand_1 ^ operand_2) & 0x80000000) == 0 && ((operand_1 ^ result) & 0x80000000)) {
-      cpu.cspr |= 0x10000000;
+      cpu.cpsr |= 0x10000000;
     } else {
-      cpu.cspr &= ~0x10000000;
+      cpu.cpsr &= ~0x10000000;
     }
   }
 }
 
 template<bool SetFlags = false>
 void subtract_with_carry_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
-  uint32_t carry = (cpu.cspr & 0x20000000) ? 1 : 0;
+  uint32_t carry = (cpu.cpsr & 0x20000000) ? 1 : 0;
   cpu.set_register_value(destination_register, operand_1 - operand_2 + carry - 1);
 
   if constexpr (SetFlags) {
-    // Update the CSPR flags
+    // Update the CPSR flags
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
 
     // Update the Carry flag
     // Carry flag is set if no borrow is needed
@@ -409,17 +409,17 @@ void subtract_with_carry_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, ui
     // TODO: Figure out if this is correct.
     uint64_t wide_operand_1 = operand_1 + carry;
     if (wide_operand_1 >= operand_2) {
-      cpu.cspr |= 0x20000000;
+      cpu.cpsr |= 0x20000000;
     } else {
-      cpu.cspr &= ~0x20000000;
+      cpu.cpsr &= ~0x20000000;
     }
 
     // Update the Overflow flag
     // sign(operand_1) != sign(operand_2) and sign(result) != sign(operand_1)
     if ((operand_1 ^ operand_2) & 0x80000000 && (operand_1 ^ result) & 0x80000000) {
-      cpu.cspr |= 0x10000000;
+      cpu.cpsr |= 0x10000000;
     } else {
-      cpu.cspr &= ~0x10000000;
+      cpu.cpsr &= ~0x10000000;
     }
   }
 }
@@ -432,19 +432,19 @@ void reverse_subtract_with_carry_op(CPU& cpu, uint32_t operand_1, uint32_t opera
 void test_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
   // Perform the AND operation, but do not store the result
   uint32_t result = operand_1 & operand_2;
-  update_negative_and_zero_cspr_flags(cpu, result);
+  update_negative_and_zero_cpsr_flags(cpu, result);
 }
 
 void test_exclusive_or_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
   // Perform the EOR operation, but do not store the result
   uint32_t result = operand_1 ^ operand_2;
-  update_negative_and_zero_cspr_flags(cpu, result);
+  update_negative_and_zero_cpsr_flags(cpu, result);
 }
 
 void compare_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
   // Perform the SUB operation, but do not store the result
   uint32_t result = operand_1 - operand_2;
-  update_negative_and_zero_cspr_flags(cpu, result);
+  update_negative_and_zero_cpsr_flags(cpu, result);
 
   // TODO: Extract the following into a function and reuse it in the subtract_op function.
 
@@ -452,24 +452,24 @@ void compare_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destin
   // Carry flag is set if no borrow is needed
   // If operand_1 > operand_2, then then no borrow is needed.
   if (operand_1 >= operand_2) {
-    cpu.cspr |= 0x20000000;
+    cpu.cpsr |= 0x20000000;
   } else {
-    cpu.cspr &= ~0x20000000;
+    cpu.cpsr &= ~0x20000000;
   }
 
   // Update the Overflow flag
   // sign(operand_1) != sign(operand_2) and sign(result) != sign(operand_1)
   if ((operand_1 ^ operand_2) & 0x80000000 && (operand_1 ^ result) & 0x80000000) {
-    cpu.cspr |= 0x10000000;
+    cpu.cpsr |= 0x10000000;
   } else {
-    cpu.cspr &= ~0x10000000;
+    cpu.cpsr &= ~0x10000000;
   }
 }
 
 void test_add_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destination_register) {
   // Perform the ADD operation, but do not store the result
   uint32_t result = operand_1 + operand_2;
-  update_negative_and_zero_cspr_flags(cpu, result);
+  update_negative_and_zero_cpsr_flags(cpu, result);
 
   // TODO: Extract the following into a function and reuse it in the add_op function.
 
@@ -477,17 +477,17 @@ void test_add_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t desti
   // Carry flag is set if the result is less than either operand
   // Just checking one of the operands is enough
   if (result < operand_1) {
-    cpu.cspr |= 0x20000000;
+    cpu.cpsr |= 0x20000000;
   } else {
-    cpu.cspr &= ~0x20000000;
+    cpu.cpsr &= ~0x20000000;
   }
 
   // Update the Overflow flag
   // sign(operand_1) == sign(operand_2) and sign(result) != sign(operand_1)
   if (((operand_1 ^ operand_2) & 0x80000000) == 0 && ((operand_1 ^ result) & 0x80000000)) {
-    cpu.cspr |= 0x10000000;
+    cpu.cpsr |= 0x10000000;
   } else {
-    cpu.cspr &= ~0x10000000;
+    cpu.cpsr &= ~0x10000000;
   }
 }
 
@@ -496,9 +496,9 @@ void or_operation(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t dest
   cpu.set_register_value(destination_register, operand_1 | operand_2);
 
   if constexpr (SetFlags) {
-    // Update the CSPR flags (only N and Z, C and V are not updated)
+    // Update the CPSR flags (only N and Z, C and V are not updated)
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
   }
 }
 
@@ -507,9 +507,9 @@ void move_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t destinati
   cpu.set_register_value(destination_register, operand_2);
 
   if constexpr (SetFlags) {
-    // Update the CSPR flags, but do not update the C and V flags
+    // Update the CPSR flags, but do not update the C and V flags
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
   }
 }
 
@@ -518,9 +518,9 @@ void bit_clear_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t dest
   cpu.set_register_value(destination_register, operand_1 & ~operand_2);
 
   if constexpr (SetFlags) {
-    // Update the CSPR flags (only N and Z, C and V are not updated)
+    // Update the CPSR flags (only N and Z, C and V are not updated)
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
   }
 }
 
@@ -529,13 +529,13 @@ void move_not_op(CPU& cpu, uint32_t operand_1, uint32_t operand_2, uint8_t desti
   cpu.set_register_value(destination_register, ~operand_2);
 
   if constexpr (SetFlags) {
-    // Update the CSPR flags (only N and Z, C and V are not updated)
+    // Update the CPSR flags (only N and Z, C and V are not updated)
     uint32_t result = cpu.get_register_value(destination_register);
-    update_negative_and_zero_cspr_flags(cpu, result);
+    update_negative_and_zero_cpsr_flags(cpu, result);
   }
 }
 
-void automatically_restore_cspr_if_applicable(CPU& cpu, uint8_t opcode, uint8_t destination_register) {
+void automatically_restore_cpsr_if_applicable(CPU& cpu, uint8_t opcode, uint8_t destination_register) {
   // Ignore instructions that don't write to the destination register.
   if (opcode == TST || opcode == TEQ || opcode == CMP || opcode == CMN) {
     return;
@@ -546,13 +546,13 @@ void automatically_restore_cspr_if_applicable(CPU& cpu, uint8_t opcode, uint8_t 
   }
 
   // Put the saved CPU state for the current mode back 
-  // into the CSPR automatically if the destination register is the PC.
-  auto const mode = (cpu.cspr & 0x1F);
+  // into the CPSR automatically if the destination register is the PC.
+  auto const mode = (cpu.cpsr & 0x1F);
   auto const has_saved_cpu_state = mode != User && mode != System;
   if (has_saved_cpu_state) {
-    cpu.cspr = cpu.mode_to_scspr[mode];
+    cpu.cpsr = cpu.mode_to_scpsr[mode];
   } else {
-    throw std::runtime_error("Cannot restore CSPR for User or System mode");
+    throw std::runtime_error("Cannot restore CPSR for User or System mode");
   }
 }
 
@@ -575,7 +575,7 @@ void register_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, ui
   Op(cpu, operand_1, shifted_operand_2, destination_register);
 
   if constexpr (SetFlags) {
-    automatically_restore_cspr_if_applicable(cpu, opcode, destination_register);
+    automatically_restore_cpsr_if_applicable(cpu, opcode, destination_register);
   }
 
   if (destination_register != PC) {
@@ -598,7 +598,7 @@ void immediate_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, u
   Op(cpu, operand_1, operand_2_immediate, destination_register);
 
   if constexpr (SetFlags) {
-    automatically_restore_cspr_if_applicable(cpu, opcode, destination_register);
+    automatically_restore_cpsr_if_applicable(cpu, opcode, destination_register);
   }
 
   if (destination_register != PC) {
@@ -612,39 +612,39 @@ void immediate_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, u
 
 static constexpr uint32_t SET_CONDITIONS = 1 << 20;
 static constexpr uint32_t IMMEDIATE = 1 << 25;
-static constexpr uint32_t SOURCE_SCSPR = 1 << 22;
+static constexpr uint32_t SOURCE_SCPSR = 1 << 22;
 
 #define EXPAND_PERMUTATIONS(name) \
   register_operation<name<false>>, \
   immediate_operation<name<false>>, \
   register_operation<name<true>, true>, \
   immediate_operation<name<true>, true>
-#define EXPAND_PERMUTATIONS_IGNORE_CSPR(name) \
+#define EXPAND_PERMUTATIONS_IGNORE_CPSR(name) \
   register_operation<name, true>, \
   immediate_operation<name, true>, \
   register_operation<name, true>, \
   immediate_operation<name, true>
 
 void decode_move_psr_to_register(CPU& cpu, uint32_t opcode) {
-  bool source_cspr = opcode & SOURCE_SCSPR;
+  bool source_cpsr = opcode & SOURCE_SCPSR;
   uint8_t destination_register = (opcode >> 12) & 0xF;
-  if (source_cspr) {
-    uint8_t mode = cpu.cspr & 0x1F;
+  if (source_cpsr) {
+    uint8_t mode = cpu.cpsr & 0x1F;
     if (mode == User) {
       throw std::runtime_error("Cannot get SPSR in User mode");
     }
-    cpu.set_register_value(destination_register, cpu.mode_to_scspr[mode]);
+    cpu.set_register_value(destination_register, cpu.mode_to_scpsr[mode]);
   } else {
-    cpu.set_register_value(destination_register, cpu.cspr);
+    cpu.set_register_value(destination_register, cpu.cpsr);
   }
 
   cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
 void decode_move_register_to_psr(CPU& cpu, uint32_t opcode) {
-  bool move_spsr = opcode & SOURCE_SCSPR;
+  bool move_spsr = opcode & SOURCE_SCPSR;
   uint8_t source_register = opcode & 0xF;
-  uint8_t mode = cpu.cspr & 0x1F;
+  uint8_t mode = cpu.cpsr & 0x1F;
   bool transfer_all_bits = opcode & (1 << 16);
 
   if (move_spsr && mode == User) {
@@ -653,21 +653,21 @@ void decode_move_register_to_psr(CPU& cpu, uint32_t opcode) {
 
   // Only the flag bits are being changed.
   if (!transfer_all_bits) {
-    // NOTE: CSPR is 12 bits, the middle 20 bits are reserved and should be preserved.
+    // NOTE: CPSR is 12 bits, the middle 20 bits are reserved and should be preserved.
     bool immediate = opcode & (1 << 29);
     if (immediate) {
       uint32_t source_operand = opcode & 0xFFF;
       uint32_t operand_immediate = apply_rotate_operation<false>(cpu, source_operand);
       if (move_spsr) {
-        cpu.mode_to_scspr[mode] = (cpu.mode_to_scspr[mode] & 0x0FFFFFFF) | (operand_immediate & 0xF0000000);
+        cpu.mode_to_scpsr[mode] = (cpu.mode_to_scpsr[mode] & 0x0FFFFFFF) | (operand_immediate & 0xF0000000);
       } else {
-        cpu.cspr = (cpu.cspr & 0x0FFFFFFF) | (operand_immediate & 0xF0000000);
+        cpu.cpsr = (cpu.cpsr & 0x0FFFFFFF) | (operand_immediate & 0xF0000000);
       }
     } else {
       if (move_spsr) {
-        cpu.mode_to_scspr[mode] = (cpu.mode_to_scspr[mode] & 0x0FFFFFFF) | (cpu.get_register_value(source_register) & 0xF0000000);
+        cpu.mode_to_scpsr[mode] = (cpu.mode_to_scpsr[mode] & 0x0FFFFFFF) | (cpu.get_register_value(source_register) & 0xF0000000);
       } else {
-        cpu.cspr = (cpu.cspr & 0x0FFFFFFF) | (cpu.get_register_value(source_register) & 0xF0000000);
+        cpu.cpsr = (cpu.cpsr & 0x0FFFFFFF) | (cpu.get_register_value(source_register) & 0xF0000000);
       }
     }
     // Increment the PC to the next instruction
@@ -676,21 +676,21 @@ void decode_move_register_to_psr(CPU& cpu, uint32_t opcode) {
   }
 
   if (move_spsr) {
-    cpu.mode_to_scspr[mode] = cpu.get_register_value(source_register);
+    cpu.mode_to_scpsr[mode] = cpu.get_register_value(source_register);
   } else if (mode == User) {
-    cpu.cspr = cpu.get_register_value(source_register) & 0xF0000000;
+    cpu.cpsr = cpu.get_register_value(source_register) & 0xF0000000;
   } else {
-    cpu.cspr = cpu.get_register_value(source_register);
+    cpu.cpsr = cpu.get_register_value(source_register);
   }
 
   // Increment the PC to the next instruction
   cpu.set_register_value(PC, cpu.get_register_value(PC) + ARM_INSTRUCTION_SIZE);
 }
 
-static constexpr uint32_t REGISTER_AND_NO_CSPR = 0;
-static constexpr uint32_t IMMEDIATE_AND_NO_CSPR = 1;
-static constexpr uint32_t REGISTER_AND_CSPR = 2;
-static constexpr uint32_t IMMEDIATE_AND_CSPR = 3;
+static constexpr uint32_t REGISTER_AND_NO_CPSR = 0;
+static constexpr uint32_t IMMEDIATE_AND_NO_CPSR = 1;
+static constexpr uint32_t REGISTER_AND_CPSR = 2;
+static constexpr uint32_t IMMEDIATE_AND_CPSR = 3;
 
 void decode_data_processing(CPU& cpu, uint32_t opcode) {
   uint8_t data_opcode = (opcode >> 21) & 0xF;
@@ -715,13 +715,13 @@ void decode_data_processing(CPU& cpu, uint32_t opcode) {
 
   auto const& operation_funcs = cpu.arm_data_processing_instructions[data_opcode];
   if (!is_immediate && !set_conditions) {
-    operation_funcs[REGISTER_AND_NO_CSPR](cpu, data_opcode, operand_1, operand_2, destination_register);
+    operation_funcs[REGISTER_AND_NO_CPSR](cpu, data_opcode, operand_1, operand_2, destination_register);
   } else if (is_immediate && !set_conditions) {
-    operation_funcs[IMMEDIATE_AND_NO_CSPR](cpu, data_opcode, operand_1, operand_2, destination_register);
+    operation_funcs[IMMEDIATE_AND_NO_CPSR](cpu, data_opcode, operand_1, operand_2, destination_register);
   } else if (!is_immediate && set_conditions) {
-    operation_funcs[REGISTER_AND_CSPR](cpu, data_opcode, operand_1, operand_2, destination_register);
+    operation_funcs[REGISTER_AND_CPSR](cpu, data_opcode, operand_1, operand_2, destination_register);
   } else if (is_immediate && set_conditions) {
-    operation_funcs[IMMEDIATE_AND_CSPR](cpu, data_opcode, operand_1, operand_2, destination_register);
+    operation_funcs[IMMEDIATE_AND_CPSR](cpu, data_opcode, operand_1, operand_2, destination_register);
   }
 }
 
@@ -736,10 +736,10 @@ void prepare_data_processing(CPU& cpu) {
   cpu.arm_data_processing_instructions[ADC] = { EXPAND_PERMUTATIONS(add_with_carry_op) };
   cpu.arm_data_processing_instructions[SBC] = { EXPAND_PERMUTATIONS(subtract_with_carry_op) };
   cpu.arm_data_processing_instructions[RSC] = { EXPAND_PERMUTATIONS(reverse_subtract_with_carry_op) };
-  cpu.arm_data_processing_instructions[TST] = { EXPAND_PERMUTATIONS_IGNORE_CSPR(test_op) };
-  cpu.arm_data_processing_instructions[TEQ] = { EXPAND_PERMUTATIONS_IGNORE_CSPR(test_exclusive_or_op) };
-  cpu.arm_data_processing_instructions[CMP] = { EXPAND_PERMUTATIONS_IGNORE_CSPR(compare_op) };
-  cpu.arm_data_processing_instructions[CMN] = { EXPAND_PERMUTATIONS_IGNORE_CSPR(test_add_op) };
+  cpu.arm_data_processing_instructions[TST] = { EXPAND_PERMUTATIONS_IGNORE_CPSR(test_op) };
+  cpu.arm_data_processing_instructions[TEQ] = { EXPAND_PERMUTATIONS_IGNORE_CPSR(test_exclusive_or_op) };
+  cpu.arm_data_processing_instructions[CMP] = { EXPAND_PERMUTATIONS_IGNORE_CPSR(compare_op) };
+  cpu.arm_data_processing_instructions[CMN] = { EXPAND_PERMUTATIONS_IGNORE_CPSR(test_add_op) };
   cpu.arm_data_processing_instructions[ORR] = { EXPAND_PERMUTATIONS(or_operation) };
   cpu.arm_data_processing_instructions[MOV] = { EXPAND_PERMUTATIONS(move_op) };
   cpu.arm_data_processing_instructions[BIC] = { EXPAND_PERMUTATIONS(bit_clear_op) };
@@ -766,7 +766,7 @@ void multiply_op(
   cpu.set_register_value(destination_register, result);
 
   if (set_flags) {
-    update_negative_and_zero_cspr_flags(cpu, cpu.get_register_value(destination_register));
+    update_negative_and_zero_cpsr_flags(cpu, cpu.get_register_value(destination_register));
   }
 }
 
@@ -789,7 +789,7 @@ void multiply_long_op(
   cpu.set_register_value(destination_register_high, result >> 32);
 
   if (set_flags) {
-    update_negative_and_zero_cspr_flags<uint64_t, int64_t>(cpu, result);
+    update_negative_and_zero_cpsr_flags<uint64_t, int64_t>(cpu, result);
   }
 }
 
@@ -812,7 +812,7 @@ void multiply_long_signed_op(
   cpu.set_register_value(destination_register_high, result >> 32);
 
   if (set_flags) {
-    update_negative_and_zero_cspr_flags<int64_t, int64_t>(cpu, result);
+    update_negative_and_zero_cpsr_flags<int64_t, int64_t>(cpu, result);
   }
 }
 
@@ -970,7 +970,7 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
     // If PC is the base register, it should be 8 bytes ahead.
     base_address += 2 * cpu.get_instruction_size();
 
-    if (cpu.cspr & CSPR_THUMB_STATE) {
+    if (cpu.cpsr & CPSR_THUMB_STATE) {
       // Make sure the address is word aligned.
       base_address &= ~3;
     }
@@ -1277,8 +1277,8 @@ void block_load(CPU& cpu, uint8_t base_register, uint16_t register_list, uint8_t
     }
 
     if (load_psr && register_idx == PC) {
-      // Load the current modes SPSR to CSPR when S bit is set and PC is in the list.
-      cpu.cspr = cpu.mode_to_scspr[cpu.cspr & 0x1F];
+      // Load the current modes SPSR to CPSR when S bit is set and PC is in the list.
+      cpu.cpsr = cpu.mode_to_scpsr[cpu.cpsr & 0x1F];
     }
   }
 
@@ -1423,19 +1423,19 @@ void decode_single_data_swap(CPU& cpu, uint32_t opcode) {
 void software_interrupt(CPU& cpu) {
   // Backup the current PC and CPSR
   uint32_t current_pc = cpu.get_register_value(PC);
-  uint32_t current_cspr = cpu.cspr;
+  uint32_t current_cpsr = cpu.cpsr;
 
   // Fetch the instruction size before switching to Supervisor mode.
   uint32_t instruction_size = cpu.get_instruction_size();
 
   // Switch to Supervisor mode & back to ARM state.
-  cpu.cspr = (cpu.cspr & ~CSPR_MODE_MASK) | Supervisor;
-  cpu.cspr &= ~CSPR_THUMB_STATE;
+  cpu.cpsr = (cpu.cpsr & ~CPSR_MODE_MASK) | Supervisor;
+  cpu.cpsr &= ~CPSR_THUMB_STATE;
 
-  // Save the current PC to LR, and CSPR to SPSR_svc
+  // Save the current PC to LR, and CPSR to SPSR_svc
   // Make sure to increment the LR to the next instruction after the SWI.
   cpu.set_register_value(LR, current_pc + instruction_size);
-  cpu.mode_to_scspr[Supervisor] = current_cspr;
+  cpu.mode_to_scpsr[Supervisor] = current_cpsr;
 
   // Set the PC to the SWI vector
   cpu.set_register_value(PC, 0x08);
@@ -2089,7 +2089,7 @@ void cpu_reset(CPU& cpu) {
 
 void cpu_init(CPU& cpu) {
   // Init CPSR flags.
-  cpu.cspr = (uint32_t)System | CSPR_FIQ_DISABLE;
+  cpu.cpsr = (uint32_t)System | CPSR_FIQ_DISABLE;
 
   // Init the RAM
   ram_init(cpu.ram);
@@ -2199,20 +2199,20 @@ void execute_thumb_instruction(CPU& cpu, uint32_t instruction) {
 
 bool evaluate_arm_condition(CPU& cpu, uint8_t condition) {
   switch (condition) {
-    case EQ: return (cpu.cspr & CSPR_Z) != 0; // Z == 1
-    case NE: return (cpu.cspr & CSPR_Z) == 0; // Z == 0
-    case CS: return (cpu.cspr & CSPR_C) != 0; // C == 1
-    case CC: return (cpu.cspr & CSPR_C) == 0; // C == 0
-    case MI: return (cpu.cspr & CSPR_N) != 0; // N == 1
-    case PL: return (cpu.cspr & CSPR_N) == 0; // N == 0
-    case VS: return (cpu.cspr & CSPR_V) != 0; // V == 1
-    case VC: return (cpu.cspr & CSPR_V) == 0; // V == 0
-    case HI: return (cpu.cspr & CSPR_C) != 0 && (cpu.cspr & CSPR_Z) == 0; // C == 1 && Z == 0
-    case LS: return (cpu.cspr & CSPR_C) == 0 || (cpu.cspr & CSPR_Z) != 0; // C == 0 || Z == 1
-    case GE: return ((cpu.cspr & CSPR_N) > 0) == ((cpu.cspr & CSPR_V) > 0); // N == V
-    case LT: return ((cpu.cspr & CSPR_N) > 0) != ((cpu.cspr & CSPR_V) > 0); // N != V
-    case GT: return (cpu.cspr & CSPR_Z) == 0 && ((cpu.cspr & CSPR_N) > 0) == ((cpu.cspr & CSPR_V) > 0); // Z == 0 && N == V
-    case LE: return (cpu.cspr & CSPR_Z) != 0 || ((cpu.cspr & CSPR_N) > 0) != ((cpu.cspr & CSPR_V) > 0); // Z == 1 || N != V
+    case EQ: return (cpu.cpsr & CPSR_Z) != 0; // Z == 1
+    case NE: return (cpu.cpsr & CPSR_Z) == 0; // Z == 0
+    case CS: return (cpu.cpsr & CPSR_C) != 0; // C == 1
+    case CC: return (cpu.cpsr & CPSR_C) == 0; // C == 0
+    case MI: return (cpu.cpsr & CPSR_N) != 0; // N == 1
+    case PL: return (cpu.cpsr & CPSR_N) == 0; // N == 0
+    case VS: return (cpu.cpsr & CPSR_V) != 0; // V == 1
+    case VC: return (cpu.cpsr & CPSR_V) == 0; // V == 0
+    case HI: return (cpu.cpsr & CPSR_C) != 0 && (cpu.cpsr & CPSR_Z) == 0; // C == 1 && Z == 0
+    case LS: return (cpu.cpsr & CPSR_C) == 0 || (cpu.cpsr & CPSR_Z) != 0; // C == 0 || Z == 1
+    case GE: return ((cpu.cpsr & CPSR_N) > 0) == ((cpu.cpsr & CPSR_V) > 0); // N == V
+    case LT: return ((cpu.cpsr & CPSR_N) > 0) != ((cpu.cpsr & CPSR_V) > 0); // N != V
+    case GT: return (cpu.cpsr & CPSR_Z) == 0 && ((cpu.cpsr & CPSR_N) > 0) == ((cpu.cpsr & CPSR_V) > 0); // Z == 0 && N == V
+    case LE: return (cpu.cpsr & CPSR_Z) != 0 || ((cpu.cpsr & CPSR_N) > 0) != ((cpu.cpsr & CPSR_V) > 0); // Z == 1 || N != V
     case AL: return true;
     default: return false;
   }
@@ -2342,7 +2342,7 @@ uint16_t cpu_read_next_thumb_instruction(CPU& cpu) {
 }
 
 void cpu_cycle(CPU& cpu) {
-  bool is_thumb = (cpu.cspr & 0x20) != 0;
+  bool is_thumb = (cpu.cpsr & 0x20) != 0;
 
   // Fetch the instruction from the memory
   uint32_t instruction = is_thumb 
@@ -2363,7 +2363,7 @@ void cpu_interrupt_cycle(CPU& cpu) {
   uint32_t interrupt_flag = ram_read_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
   if (interrupt_flag > 0) {
     // Check CPSR to see if IRQs are disabled
-    if ((cpu.cspr & CSPR_IRQ_DISABLE) > 0) return;
+    if ((cpu.cpsr & CPSR_IRQ_DISABLE) > 0) return;
 
     // Check IME to see if interrupts are enabled
     uint32_t interrupt_master_enable = ram_read_word_from_io_registers_fast<REG_INTERRUPT_MASTER_ENABLE>(cpu.ram);
@@ -2381,22 +2381,22 @@ void cpu_interrupt_cycle(CPU& cpu) {
 void cpu_trigger_irq_interrupt(CPU& cpu) {
   // Backup the current PC and CPSR
   uint32_t current_pc = cpu.get_register_value(PC);
-  uint32_t current_cspr = cpu.cspr;
+  uint32_t current_cpsr = cpu.cpsr;
 
   // Fetch the instruction size before switching to Supervisor mode.
   uint32_t instruction_size = cpu.get_instruction_size();
 
   // Switch to IRQ mode & back to ARM state.
-  cpu.cspr = (cpu.cspr & ~CSPR_MODE_MASK) | IRQ;
-  cpu.cspr &= ~CSPR_THUMB_STATE;
+  cpu.cpsr = (cpu.cpsr & ~CPSR_MODE_MASK) | IRQ;
+  cpu.cpsr &= ~CPSR_THUMB_STATE;
 
   // Disable further interrupts
-  cpu.cspr |= CSPR_IRQ_DISABLE;
+  cpu.cpsr |= CPSR_IRQ_DISABLE;
 
-  // Save the current PC to LR, and CSPR to SPSR_irq
+  // Save the current PC to LR, and CPSR to SPSR_irq
   // Make sure to increment the LR to the next instruction.
   cpu.set_register_value(LR, current_pc + instruction_size);
-  cpu.mode_to_scspr[IRQ] = current_cspr;
+  cpu.mode_to_scpsr[IRQ] = current_cpsr;
 
   // Set the PC to the IRQ vector
   cpu.set_register_value(PC, 0x18);

@@ -13,7 +13,7 @@ TEST_CASE("SP-Relative Load/Store", "[thumb, sp-relative-load-store]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/sp_relative_load_store.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("STR") {
     cpu.set_register_value(PC, 0x0);

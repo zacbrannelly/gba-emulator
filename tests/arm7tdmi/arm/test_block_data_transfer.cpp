@@ -260,19 +260,19 @@ TEST_CASE("Block Data Transfer", "[arm, block-data-transfer]") {
     REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/arm/test_block_data_transfer.bin"));
 
     // ldmfd sp!, {r15}^ - R15 <- (SP), CPSR <- SPSR_mode
-    cpu.cspr = (uint32_t)Supervisor;
+    cpu.cpsr = (uint32_t)Supervisor;
     cpu.set_register_value(PC, 0x40);
     cpu.set_register_value(SP, 0x100);
     ram_write_word(cpu.ram, 0x100, 0x10);
-    cpu.mode_to_scspr[Supervisor] = (uint32_t)User;
+    cpu.mode_to_scpsr[Supervisor] = (uint32_t)User;
     cpu_cycle(cpu);
 
     REQUIRE(cpu.get_register_value(PC) == 0x10);
-    REQUIRE(cpu.cspr == (uint32_t)User);
+    REQUIRE(cpu.cpsr == (uint32_t)User);
 
     // stmfd r13, {r0-r14}^ - Save user mode regs on stack (allowed only in privileged modes).
     // Pre-decrement store, store r0-r14 into memory at r13.
-    cpu.cspr = (uint32_t)Supervisor;
+    cpu.cpsr = (uint32_t)Supervisor;
     cpu.registers[13] = 0x32; // User mode SP
     cpu.registers[14] = 0x11; // User mode LR
     cpu.set_register_value(PC, 0x44); // Supervisor mode PC

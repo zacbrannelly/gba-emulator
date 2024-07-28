@@ -13,7 +13,7 @@ TEST_CASE("Move, compare, add, subtract (immediate)", "[thumb, mov-cmp-add-sub-i
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/mov_cmp_add_sub_immediate.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("MOV") {
     cpu.set_register_value(PC, 0);
@@ -33,7 +33,7 @@ TEST_CASE("Move, compare, add, subtract (immediate)", "[thumb, mov-cmp-add-sub-i
     cpu.set_register_value(0, 5);
     cpu_cycle(cpu);
 
-    bool result = cpu.cspr & CSPR_Z;
+    bool result = cpu.cpsr & CPSR_Z;
     REQUIRE(result == true);
   }
 

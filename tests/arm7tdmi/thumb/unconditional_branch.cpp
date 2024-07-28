@@ -13,7 +13,7 @@ TEST_CASE("Unconditional Branch", "[thumb, unconditional-branch]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/unconditional_branch.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("B") {
     cpu.set_register_value(PC, 0x0);

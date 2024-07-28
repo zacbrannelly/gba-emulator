@@ -13,7 +13,7 @@ TEST_CASE("High Register Operations", "[thumb, high-register-operations]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/high_register_operations.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("ADD") {
     cpu.set_register_value(PC, 0x0);
@@ -51,7 +51,7 @@ TEST_CASE("High Register Operations", "[thumb, high-register-operations]") {
     cpu.set_register_value(9, 5);
     cpu_cycle(cpu);
 
-    bool result = cpu.cspr & CSPR_Z;
+    bool result = cpu.cpsr & CPSR_Z;
     REQUIRE(result);
     
     // cmp r9, r0
@@ -59,7 +59,7 @@ TEST_CASE("High Register Operations", "[thumb, high-register-operations]") {
     cpu.set_register_value(9, 6);
     cpu_cycle(cpu);
 
-    result = cpu.cspr & CSPR_Z;
+    result = cpu.cpsr & CPSR_Z;
     REQUIRE_FALSE(result);
 
     // cmp r8, r9
@@ -67,7 +67,7 @@ TEST_CASE("High Register Operations", "[thumb, high-register-operations]") {
     cpu.set_register_value(9, 5);
     cpu_cycle(cpu);
 
-    result = cpu.cspr & CSPR_Z;
+    result = cpu.cpsr & CPSR_Z;
     REQUIRE(result);
   }
 
@@ -108,16 +108,16 @@ TEST_CASE("High Register Operations", "[thumb, high-register-operations]") {
 
     uint32_t expected = 0x0;
     REQUIRE(cpu.get_register_value(PC) == expected);
-    REQUIRE_FALSE(cpu.cspr & CSPR_THUMB_STATE);
+    REQUIRE_FALSE(cpu.cpsr & CPSR_THUMB_STATE);
 
     // bx r9
-    cpu.cspr |= CSPR_THUMB_STATE;
+    cpu.cpsr |= CPSR_THUMB_STATE;
     cpu.set_register_value(PC, 0x14);
     cpu.set_register_value(9, 0x1);
     cpu_cycle(cpu);
 
     expected = 0x0;
     REQUIRE(cpu.get_register_value(PC) == expected);
-    REQUIRE(cpu.cspr & CSPR_THUMB_STATE);
+    REQUIRE(cpu.cpsr & CPSR_THUMB_STATE);
   }
 }

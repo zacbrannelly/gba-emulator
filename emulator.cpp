@@ -49,7 +49,7 @@ struct DebuggerState {
 
 void cycle(CPU& cpu, GPU& gpu, Timer& timer) {
   // PC alignment check.
-  if (cpu.cspr & CSPR_THUMB_STATE) {
+  if (cpu.cpsr & CPSR_THUMB_STATE) {
     if (cpu.get_register_value(PC) % 2 != 0) {
       throw std::runtime_error("PC is not aligned to 2 bytes.");
     }
@@ -78,7 +78,7 @@ void reset_cpu(CPU& cpu, GPU& gpu, Timer& timer) {
   for (int i = 0; i < 16; i++) {
     cpu.set_register_value(i, 0);
   }
-  cpu.cspr = (uint32_t)System | CSPR_FIQ_DISABLE;
+  cpu.cpsr = (uint32_t)System | CPSR_FIQ_DISABLE;
   cpu.cycle_count = 0;
 
   ram_soft_reset(cpu.ram);
@@ -100,18 +100,18 @@ void emulator_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_sta
 
   // Set the SP for each mode.
   // TODO: Clean this up and move it to a function (perhaps cpu_init?).
-  uint32_t cspr_backup = cpu.cspr;
-  cpu.cspr = (uint32_t)Supervisor;
+  uint32_t cpsr_backup = cpu.cpsr;
+  cpu.cpsr = (uint32_t)Supervisor;
   cpu.set_register_value(SP, 0x3007FE0);
 
-  cpu.cspr = (uint32_t)IRQ;
+  cpu.cpsr = (uint32_t)IRQ;
   cpu.set_register_value(SP, 0x3007FA0);
 
-  cpu.cspr = (uint32_t)System;
+  cpu.cpsr = (uint32_t)System;
   cpu.set_register_value(SP, 0x3007F00);
 
-  // Reset the CSPR to the original value.
-  cpu.cspr = cspr_backup;
+  // Reset the CPSR to the original value.
+  cpu.cpsr = cpsr_backup;
 
   while(!cpu.killSignal) {
     if (debugger_state.command_queue.size() > 0) {
@@ -209,9 +209,9 @@ void cpu_debugger_window(CPU& cpu, DebuggerState& debugger_state) {
     for (int i = 0; i < 16; i++) {
       ImGui::Text("R%d: 0x%08X", i, cpu.get_register_value(i));
     }
-    ImGui::Text("CSPR: 0x%08X", cpu.cspr);
+    ImGui::Text("CPSR: 0x%08X", cpu.cpsr);
 
-    if (cpu.cspr & CSPR_THUMB_STATE) {
+    if (cpu.cpsr & CPSR_THUMB_STATE) {
       ImGui::Text("Instruction: 0x%04X", ram_read_half_word(cpu.ram, cpu.get_register_value(PC)));
     } else {
       ImGui::Text("Instruction: 0x%08X", ram_read_word(cpu.ram, cpu.get_register_value(PC)));

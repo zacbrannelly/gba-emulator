@@ -11,7 +11,7 @@ TEST_CASE("PC-Relative Load", "[thumb, pc-relative-load]") {
   cpu.ram.enable_rom_write_protection = false;
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("LDR") {
     REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/pc_relative_load.bin"));

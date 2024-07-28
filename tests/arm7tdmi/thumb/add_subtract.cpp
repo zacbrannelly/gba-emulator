@@ -13,7 +13,7 @@ TEST_CASE("Add / Subtract (Register)", "[thumb, add-subtract-register]") {
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/add_subtract.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("ADD") {
     cpu.set_register_value(PC, 0x0);

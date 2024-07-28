@@ -13,7 +13,7 @@ TEST_CASE("Load/Store Unsigned/Signed Byte/Halfword", "[thumb, load-store-signed
   REQUIRE_NOTHROW(ram_load_rom(cpu.ram, "./tests/arm7tdmi/thumb/load_store_signed_halfword.bin"));
 
   // Enter Thumb State
-  cpu.cspr |= CSPR_THUMB_STATE;
+  cpu.cpsr |= CPSR_THUMB_STATE;
 
   SECTION("STRH") {
     cpu.set_register_value(PC, 0x0);
