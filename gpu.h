@@ -33,7 +33,7 @@ struct GPU {
   bool scanline_obj_window_buffer[FRAME_WIDTH];
 
   // Final scanline color buffer.
-  uint16_t final_scanline_buffer[FRAME_WIDTH];
+  uint16_t scanline_buffer[FRAME_WIDTH];
 
   // Full Frame buffer.
   uint16_t frame_buffer[FRAME_BUFFER_SIZE];

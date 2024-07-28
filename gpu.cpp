@@ -31,7 +31,7 @@ inline uint16_t gpu_get_backdrop_color(CPU& cpu) {
 
 inline void gpu_clear_scanline_buffers(GPU& gpu) {
   // Reset layer buffers.
-  memset(gpu.final_scanline_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
+  memset(gpu.scanline_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
   memset(gpu.scanline_special_effects_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
   memset(gpu.scanline_obj_window_buffer, 0, FRAME_WIDTH * sizeof(bool));
   for (int x = 0; x < FRAME_WIDTH; x++) {
@@ -327,11 +327,11 @@ inline void gpu_apply_window_to_special_effects(CPU& cpu, GPU& gpu) {
   }
 }
 
-inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
+inline void gpu_resolve_scanline_buffer(CPU& cpu, GPU& gpu) {
   for (int x = 0; x < FRAME_WIDTH; x++) {
     uint16_t special_effects_color = gpu.scanline_special_effects_buffer[x];
     if (special_effects_color > 0) {
-      gpu.final_scanline_buffer[x] = special_effects_color;
+      gpu.scanline_buffer[x] = special_effects_color;
       continue;
     }
 
@@ -339,7 +339,7 @@ inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
     for (int priority = 3; priority >= 0; priority--) {
       for (int pixel_source = 4; pixel_source >= 0; pixel_source--) {
         if (pixel_priority_map[priority][pixel_source] > 0) {
-          gpu.final_scanline_buffer[x] = pixel_priority_map[priority][pixel_source];
+          gpu.scanline_buffer[x] = pixel_priority_map[priority][pixel_source];
           break;
         }
       }
@@ -347,33 +347,11 @@ inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
   }
 }
 
-void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
-  // Reset layer buffers.
-  gpu_clear_scanline_buffers(gpu);
-
+void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
   uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
-  uint8_t* vram = cpu.ram.video_ram;
-  uint16_t* bg_palette_ram = (uint16_t*)(cpu.ram.palette_ram);
-
-  // =================================================================================================
-  // Backdrop Layer
-  // =================================================================================================
-  uint16_t backdrop_color = gpu_get_backdrop_color(cpu);
-  for (int i = 0; i < FRAME_WIDTH; i++) {
-    gpu.final_scanline_buffer[i] = backdrop_color;
-  }
-
-  // =================================================================================================
-  // BG Layers
-  // =================================================================================================
-
-  // TODO: Implement the logic for each BG layer.
-
-  // =================================================================================================
-  // OBJ Layer
-  // =================================================================================================
   bool is_one_dimensional = disp_cnt & (1 << 6);
 
+  uint8_t* vram = cpu.ram.video_ram;
   uint16_t* oam = (uint16_t*)cpu.ram.object_attribute_memory;
   uint16_t* sprite_palette_ram = (uint16_t*)(cpu.ram.palette_ram + 0x200);
 
@@ -564,6 +542,23 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
       }
     }
   }
+}
+
+void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
+  // Reset layer buffers.
+  gpu_clear_scanline_buffers(gpu);
+
+  // Backdrop Layer.
+  uint16_t backdrop_color = gpu_get_backdrop_color(cpu);
+  for (int i = 0; i < FRAME_WIDTH; i++) {
+    gpu.scanline_buffer[i] = backdrop_color;
+  }
+
+  // BG Layers.
+  // TODO: Implement the logic for each BG layer.
+
+  // OBJ Layer.
+  gpu_render_obj_layer(cpu, gpu, scanline);
 
   // Apply Window Effects
   gpu_apply_window_effects(cpu, gpu);
@@ -575,11 +570,11 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
   gpu_apply_window_to_special_effects(cpu, gpu);
 
   // Composite the various priority buffers to a final scanline.
-  gpu_resolve_final_scanline_buffer(cpu, gpu);
+  gpu_resolve_scanline_buffer(cpu, gpu);
 
   // Copy the final scanline buffer to the frame buffer.
   uint32_t frame_buffer_offset = scanline * FRAME_WIDTH;
-  memcpy(&gpu.frame_buffer[frame_buffer_offset], gpu.final_scanline_buffer, FRAME_WIDTH * sizeof(uint16_t));
+  memcpy(&gpu.frame_buffer[frame_buffer_offset], gpu.scanline_buffer, FRAME_WIDTH * sizeof(uint16_t));
 }
 
 void gpu_complete_scanline(CPU& cpu, GPU& gpu) {
