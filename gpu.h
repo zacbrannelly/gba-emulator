@@ -9,13 +9,12 @@ static constexpr uint32_t FRAME_BUFFER_SIZE_BYTES = FRAME_BUFFER_SIZE * sizeof(u
 static constexpr uint32_t FRAME_BUFFER_PITCH = FRAME_WIDTH;
 
 enum PixelSource {
-  PIXEL_SOURCE_NONE = 0,
-  PIXEL_SOURCE_BG0 = 1,
-  PIXEL_SOURCE_BG1 = 2,
-  PIXEL_SOURCE_BG2 = 3,
-  PIXEL_SOURCE_BG3 = 4,
-  PIXEL_SOURCE_OBJ = 5,
-  PIXEL_SOURCE_BACKDROP = 6
+  PIXEL_SOURCE_BG0 = 0,
+  PIXEL_SOURCE_BG1 = 1,
+  PIXEL_SOURCE_BG2 = 2,
+  PIXEL_SOURCE_BG3 = 3,
+  PIXEL_SOURCE_OBJ = 4,
+  PIXEL_SOURCE_BACKDROP = 5,
 };
 
 enum OBJMode {
@@ -26,12 +25,17 @@ enum OBJMode {
 };
 
 struct GPU {
-  bool scanline_obj_window_buffer[FRAME_WIDTH];
-  uint16_t scanline_priority_buffers[4][FRAME_WIDTH];
-  PixelSource scanline_priority_pixel_sources[4][FRAME_WIDTH];
+  // 4 priority levels, 4 possible pixel sources (BACKDROP is not used here).
+  uint16_t scanline_by_priority_and_pixel_source[FRAME_WIDTH][4][5];
+  uint16_t scanline_special_effects_buffer[FRAME_WIDTH];
 
+  // Mask sourced from OBJ Windows.
+  bool scanline_obj_window_buffer[FRAME_WIDTH];
+
+  // Final scanline color buffer.
   uint16_t final_scanline_buffer[FRAME_WIDTH];
-  PixelSource final_scanline_pixel_sources[FRAME_WIDTH];
+
+  // Full Frame buffer.
   uint16_t frame_buffer[FRAME_BUFFER_SIZE];
 };
 

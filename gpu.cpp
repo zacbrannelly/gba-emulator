@@ -23,35 +23,85 @@ void gpu_init(CPU& cpu, GPU& gpu) {
   // TODO: Initialize the GPU registers.
 }
 
-static constexpr int TARGET_LAYER_BG0 = 0;
-static constexpr int TARGET_LAYER_BG1 = 1;
-static constexpr int TARGET_LAYER_BG2 = 2;
-static constexpr int TARGET_LAYER_BG3 = 3;
-static constexpr int TARGET_LAYER_OBJ = 4;
-static constexpr int TARGET_LAYER_BACKDROP = 5;
+inline uint16_t gpu_get_backdrop_color(CPU& cpu) {
+  uint16_t* bg_palette_ram = (uint16_t*)(cpu.ram.palette_ram);
+  uint16_t backdrop_color = bg_palette_ram[0];
+  return backdrop_color > 0 ? backdrop_color | ENABLE_PIXEL : 0;
+}
 
 inline void gpu_clear_scanline_buffers(GPU& gpu) {
   // Reset layer buffers.
   memset(gpu.final_scanline_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
-  for (int i = 0; i < 4; i++) {
-    memset(gpu.scanline_priority_buffers[i], 0, FRAME_WIDTH * sizeof(uint16_t));
-    for (int j = 0; j < FRAME_WIDTH; j++) {
-      gpu.scanline_priority_pixel_sources[i][j] = PIXEL_SOURCE_NONE;
-    }
-  }
+  memset(gpu.scanline_special_effects_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
   memset(gpu.scanline_obj_window_buffer, 0, FRAME_WIDTH * sizeof(bool));
-  for (int i = 0; i < FRAME_WIDTH; i++) {
-    gpu.final_scanline_pixel_sources[i] = PIXEL_SOURCE_NONE;
+  for (int x = 0; x < FRAME_WIDTH; x++) {
+    for (int priority = 0; priority < 4; priority++) {
+      for (int pixel_source = 0; pixel_source < 6; pixel_source++) {
+        gpu.scanline_by_priority_and_pixel_source[x][priority][pixel_source] = 0;
+      }
+    }
   }
 }
 
-inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
+inline void gpu_apply_window_effects(CPU& cpu, GPU& gpu) {
+  uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
+  uint16_t outside_window = ram_read_half_word_from_io_registers_fast<REG_WINDOW_OUTSIDE>(cpu.ram);
+
+  bool layer_enabled_outside_window[6] = {
+    // BG0
+    (outside_window & 1) > 0,
+    // BG1
+    (outside_window & (1 << 1)) > 0,
+    // BG2
+    (outside_window & (1 << 2)) > 0,
+    // BG3
+    (outside_window & (1 << 3)) > 0,
+    // OBJ
+    (outside_window & (1 << 4)) > 0,
+  };
+
+  bool layer_enabled_in_obj_window[6] = {
+    // BG0
+    (outside_window & (1 << 8)) > 0,
+    // BG1
+    (outside_window & (1 << 9)) > 0,
+    // BG2
+    (outside_window & (1 << 10)) > 0,
+    // BG3
+    (outside_window & (1 << 11)) > 0,
+    // OBJ
+    (outside_window & (1 << 12)) > 0
+  };
+
+  // TODO: Window 0
+
+  // TODO: Window 1
+
+  // OBJ Window
+  bool obj_window_enabled = disp_cnt & (1 << 15);
+  if (!obj_window_enabled) return;
+
   for (int i = 0; i < FRAME_WIDTH; i++) {
-    for (int j = 3; j >= 0; j--) {
-      uint16_t color = gpu.scanline_priority_buffers[j][i];
-      if (color > 0) {
-        gpu.final_scanline_buffer[i] = color;
-        gpu.final_scanline_pixel_sources[i] = gpu.scanline_priority_pixel_sources[j][i];
+    bool pixel_in_obj_window = gpu.scanline_obj_window_buffer[i];
+    uint16_t special_effect_color = gpu.scanline_special_effects_buffer[i];
+
+    if (!pixel_in_obj_window) {
+      // Conditionally disable pixels outside the OBJ window.
+      for (int priority = 0; priority < 4; priority++) {
+        for (int pixel_source = 0; pixel_source < 5; pixel_source++) {
+          if (gpu.scanline_by_priority_and_pixel_source[i][priority][pixel_source] > 0 && !layer_enabled_outside_window[pixel_source]) {
+            gpu.scanline_by_priority_and_pixel_source[i][priority][pixel_source] = 0;
+          }
+        }
+      }
+    } else {
+      // Conditionally disable pixels inside the OBJ window.
+      for (int priority = 0; priority < 4; priority++) {
+        for (int pixel_source = 0; pixel_source < 5; pixel_source++) {
+          if (gpu.scanline_by_priority_and_pixel_source[i][priority][pixel_source] > 0 && !layer_enabled_in_obj_window[pixel_source]) {
+            gpu.scanline_by_priority_and_pixel_source[i][priority][pixel_source] = 0;
+          }
+        }
       }
     }
   }
@@ -59,14 +109,19 @@ inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
 
 inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
   uint16_t special_effects_control = ram_read_half_word_from_io_registers_fast<REG_BLDCNT>(cpu.ram);
-
   uint8_t special_effects_mode = (special_effects_control >> 6) & 0x3;
   bool target_1[6] = {
+    // BG0
     (special_effects_control & 0x1) > 0,
+    // BG1
     (special_effects_control & 0x2) > 0,
+    // BG2
     (special_effects_control & 0x4) > 0,
+    // BG3
     (special_effects_control & 0x8) > 0,
+    // OBJ
     (special_effects_control & 0x10) > 0,
+    // Backdrop
     (special_effects_control & 0x20) > 0
   };
   bool target_2[6] = {
@@ -77,6 +132,9 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
     (special_effects_control & 0x1000) > 0,
     (special_effects_control & 0x2000) > 0
   };
+
+  uint16_t backdrop_color = gpu_get_backdrop_color(cpu);
+
   switch (special_effects_mode) {
     case 0: {
       // No special effects
@@ -99,41 +157,43 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
       float alpha_b_normalized = alpha_b / 16.0f;
 
       for (int i = 0; i < FRAME_WIDTH; ++i) {
-        uint8_t target_1_priority = 0;
-        uint8_t target_1_idx = 0;
+        PixelSource target_1_source = PIXEL_SOURCE_BACKDROP;
         uint16_t target_1_color = 0;
+
+        PixelSource target_2_source = PIXEL_SOURCE_BACKDROP;
+        uint16_t target_2_color = 0;
 
         // Get top most pixel and it's source.
         for (int j = 0; j < 4; j++) {
-          uint16_t color = gpu.scanline_priority_buffers[j][i];
-          if (color > 0) {
-            target_1_priority = j;
-            target_1_color = color;
-            target_1_idx = (uint8_t)gpu.scanline_priority_pixel_sources[j][i];
-            break;
+          auto color_by_priority_and_pixel_source = gpu.scanline_by_priority_and_pixel_source[i][j];
+          for (int k = 4; k >= 0; k--) {
+            uint16_t color = color_by_priority_and_pixel_source[k];
+            if (color > 0) {
+              if (target_1_color == 0) {
+                // Find top most pixel for Target 1.
+                target_1_color = color;
+                target_1_source = (PixelSource)k;
+              } else if (target_2_color == 0) {
+                // Find 2nd top most pixel for Target 2.
+                target_2_color = color;
+                target_2_source = (PixelSource)k;
+                break;
+              }
+            }
           }
+          if (target_2_color > 0) break;
         }
 
-        // Check if the target is enabled.
-        if (!target_1[target_1_idx - 1]) continue;
+        // Skip if Target 1 is the backdrop, no layer to blend with.
+        if (target_1_source == PIXEL_SOURCE_BACKDROP) continue;
 
-        uint8_t target_2_priority = 0;
-        uint8_t target_2_idx = 0;
-        uint16_t target_2_color = 0;
-
-        // Get the next top most pixel and it's source.
-        for (int j = target_1_priority + 1; j < 4; j++) {
-          uint16_t color = gpu.scanline_priority_buffers[j][i];
-          if (color > 0) {
-            target_2_priority = j;
-            target_2_color = color;
-            target_2_idx = (uint8_t)gpu.scanline_priority_pixel_sources[j][i];
-            break;
-          }
+        // Make sure to use the backdrop color if the target is the backdrop.
+        if (target_2_source == PIXEL_SOURCE_BACKDROP) {
+          target_2_color = backdrop_color;
         }
 
-        // Check if the target is enabled.
-        if (!target_2[target_2_idx - 1]) continue;
+        // Check if the layers where the targets are coming from are enabled.
+        if (!target_1[target_1_source] || !target_2[target_2_source]) continue;
 
         uint8_t target_b_r = (target_2_color & 0x1F);
         uint8_t target_b_g = ((target_2_color >> 5) & 0x1F);
@@ -160,7 +220,7 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
 
         uint16_t blended_color = r | (g << 5) | (b << 10);
         if (blended_color > 0) {
-          gpu.final_scanline_buffer[i] = blended_color | ENABLE_PIXEL;
+          gpu.scanline_special_effects_buffer[i] = blended_color | ENABLE_PIXEL;
         }
       }
       break;
@@ -174,21 +234,33 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
       float effect_coefficients_normalized = effect_coefficients / 16.0f;
 
       for (int i = 0; i < FRAME_WIDTH; ++i) {
-        uint8_t target_1_idx = 0;
+        PixelSource target_1_source = PIXEL_SOURCE_BACKDROP;
         uint16_t target_1_color = 0;
 
         // Get top most pixel and it's source.
-        for (int j = 0; j < 4; j++) {
-          uint16_t color = gpu.scanline_priority_buffers[j][i];
-          if (color > 0) {
-            target_1_color = color;
-            target_1_idx = (uint8_t)gpu.scanline_priority_pixel_sources[j][i];
-            break;
+        for (int priority = 0; priority < 4; priority++) {
+          auto color_by_priority_and_pixel_source = gpu.scanline_by_priority_and_pixel_source[i][priority];
+
+          for (int pixel_source = 4; pixel_source >= 0; pixel_source--) {
+            uint16_t color = color_by_priority_and_pixel_source[pixel_source];
+            if (color > 0) {
+              if (target_1_color == 0) {
+                // Find top most pixel for Target 1.
+                target_1_color = color;
+                target_1_source = (PixelSource)pixel_source;
+                break;
+              }
+            }
           }
+          if (target_1_color > 0) break;
         }
 
-        // Check if the target is enabled.
-        if (!target_1[target_1_idx - 1]) continue;
+        if (target_1_source == PIXEL_SOURCE_BACKDROP) {
+          target_1_color = backdrop_color;
+        }
+
+        // Check if the layer is enabled for the target.
+        if (!target_1[target_1_source]) continue;
 
         uint8_t target_a_r = (target_1_color & 0x1F);
         uint8_t target_a_g = ((target_1_color >> 5) & 0x1F);
@@ -211,7 +283,7 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
 
         uint16_t blended_color = r | (g << 5) | (b << 10);
         if (blended_color > 0) {
-          gpu.final_scanline_buffer[i] = blended_color | ENABLE_PIXEL;
+          gpu.scanline_special_effects_buffer[i] = blended_color | ENABLE_PIXEL;
         }
       }
       break;
@@ -223,18 +295,11 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
   }
 }
 
-inline void gpu_apply_window_effect(CPU& cpu, GPU& gpu) {
+inline void gpu_apply_window_to_special_effects(CPU& cpu, GPU& gpu) {
   uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
   uint16_t outside_window = ram_read_half_word_from_io_registers_fast<REG_WINDOW_OUTSIDE>(cpu.ram);
-
-  bool layer_enabled_outside_window[6] = {
-    (outside_window & 1) > 0,
-    (outside_window & (1 << 1)) > 0,
-    (outside_window & (1 << 2)) > 0,
-    (outside_window & (1 << 3)) > 0,
-    (outside_window & (1 << 4)) > 0,
-    (outside_window & (1 << 5)) > 0
-  };
+  bool sfx_enabled_outside_window = (outside_window & (1 << 5)) > 0;
+  bool sfx_enabled_in_obj_window = (outside_window & (1 << 13)) > 0;
 
   // TODO: Window 0
 
@@ -242,19 +307,42 @@ inline void gpu_apply_window_effect(CPU& cpu, GPU& gpu) {
 
   // OBJ Window
   bool obj_window_enabled = disp_cnt & (1 << 15);
-  uint16_t* bg_palette_ram = (uint16_t*)(cpu.ram.palette_ram);
-  uint16_t backdrop_color = bg_palette_ram[0] | ENABLE_PIXEL;
-
   if (!obj_window_enabled) return;
 
   for (int i = 0; i < FRAME_WIDTH; i++) {
-    // Skip masking pixels from layers that are enabled outside of windows.
-    auto pixel_source = (int)gpu.final_scanline_pixel_sources[i] - 1;
-    if (layer_enabled_outside_window[pixel_source]) continue;
+    bool pixel_in_obj_window = gpu.scanline_obj_window_buffer[i];
+    uint16_t special_effect_color = gpu.scanline_special_effects_buffer[i];
 
-    if (!gpu.scanline_obj_window_buffer[i]) {
-      gpu.final_scanline_buffer[i] = backdrop_color;
-      gpu.final_scanline_pixel_sources[i] = PIXEL_SOURCE_BACKDROP;
+    if (!pixel_in_obj_window) {
+      // Conditionally disable special effects outside the OBJ window.
+      if (special_effect_color > 0 && !sfx_enabled_outside_window) {
+        gpu.scanline_special_effects_buffer[i] = 0;
+      }
+    } else {
+      // Conditionally disable special effects inside the OBJ window.
+      if (special_effect_color > 0 && !sfx_enabled_in_obj_window) {
+        gpu.scanline_special_effects_buffer[i] = 0;
+      }
+    }
+  }
+}
+
+inline void gpu_resolve_final_scanline_buffer(CPU& cpu, GPU& gpu) {
+  for (int x = 0; x < FRAME_WIDTH; x++) {
+    uint16_t special_effects_color = gpu.scanline_special_effects_buffer[x];
+    if (special_effects_color > 0) {
+      gpu.final_scanline_buffer[x] = special_effects_color;
+      continue;
+    }
+
+    auto pixel_priority_map = gpu.scanline_by_priority_and_pixel_source[x];
+    for (int priority = 3; priority >= 0; priority--) {
+      for (int pixel_source = 4; pixel_source >= 0; pixel_source--) {
+        if (pixel_priority_map[priority][pixel_source] > 0) {
+          gpu.final_scanline_buffer[x] = pixel_priority_map[priority][pixel_source];
+          break;
+        }
+      }
     }
   }
 }
@@ -267,17 +355,12 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
   uint8_t* vram = cpu.ram.video_ram;
   uint16_t* bg_palette_ram = (uint16_t*)(cpu.ram.palette_ram);
 
-  uint16_t backdrop_color = bg_palette_ram[0];
-  if (backdrop_color > 0) {
-    backdrop_color |= ENABLE_PIXEL;
-  }
-
   // =================================================================================================
   // Backdrop Layer
   // =================================================================================================
-  for (uint32_t i = 0; i < FRAME_WIDTH; i++) {
-    gpu.scanline_priority_buffers[3][i] = backdrop_color;
-    gpu.scanline_priority_pixel_sources[3][i] = PIXEL_SOURCE_BACKDROP;
+  uint16_t backdrop_color = gpu_get_backdrop_color(cpu);
+  for (int i = 0; i < FRAME_WIDTH; i++) {
+    gpu.final_scanline_buffer[i] = backdrop_color;
   }
 
   // =================================================================================================
@@ -451,8 +534,7 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
         }
 
         if (obj_mode != OBJ_MODE_WINDOW) {
-          gpu.scanline_priority_buffers[priority][x] = color;
-          gpu.scanline_priority_pixel_sources[priority][x] = PIXEL_SOURCE_OBJ;
+          gpu.scanline_by_priority_and_pixel_source[x][priority][PIXEL_SOURCE_OBJ] = color;
         } else {
           gpu.scanline_obj_window_buffer[x] = true;
         }
@@ -465,8 +547,7 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
         if (color_left > 0) {
           if (obj_mode != OBJ_MODE_WINDOW) {
             color_left |= ENABLE_PIXEL;
-            gpu.scanline_priority_buffers[priority][x] = color_left;
-            gpu.scanline_priority_pixel_sources[priority][x] = PIXEL_SOURCE_OBJ;
+            gpu.scanline_by_priority_and_pixel_source[x][priority][PIXEL_SOURCE_OBJ] = color_left;
           } else {
             gpu.scanline_obj_window_buffer[x] = true;
           }
@@ -475,8 +556,7 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
         if (color_right > 0) {
           if (obj_mode != OBJ_MODE_WINDOW) {
             color_right |= ENABLE_PIXEL;
-            gpu.scanline_priority_buffers[priority][x + 1] = color_right;
-            gpu.scanline_priority_pixel_sources[priority][x + 1] = PIXEL_SOURCE_OBJ;
+            gpu.scanline_by_priority_and_pixel_source[x + 1][priority][PIXEL_SOURCE_OBJ] = color_right;
           } else {
             gpu.scanline_obj_window_buffer[x + 1] = true;
           }
@@ -485,14 +565,17 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
     }
   }
 
-  // Composite the various priority buffers to a final scanline.
-  gpu_resolve_final_scanline_buffer(cpu, gpu);
+  // Apply Window Effects
+  gpu_apply_window_effects(cpu, gpu);
 
   // Apply Special Effects
   gpu_apply_special_effects(cpu, gpu);
 
-  // Apply Window Effect
-  gpu_apply_window_effect(cpu, gpu);
+  // Apply Window to Special Effects
+  gpu_apply_window_to_special_effects(cpu, gpu);
+
+  // Composite the various priority buffers to a final scanline.
+  gpu_resolve_final_scanline_buffer(cpu, gpu);
 
   // Copy the final scanline buffer to the frame buffer.
   uint32_t frame_buffer_offset = scanline * FRAME_WIDTH;
