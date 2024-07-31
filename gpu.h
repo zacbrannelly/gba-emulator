@@ -19,7 +19,7 @@ enum PixelSource {
 
 enum OBJMode {
   OBJ_MODE_REGULAR_SPRITE = 0,
-  OBJ_MODE_AFFINE_SPRITE = 1,
+  OBJ_MODE_SEMI_TRANSPARENT = 1,
   OBJ_MODE_WINDOW = 2,
   OBJ_MODE_PROHIBITED = 3
 };
@@ -28,6 +28,9 @@ struct GPU {
   // 4 priority levels, 4 possible pixel sources (BACKDROP is not used here).
   uint16_t scanline_by_priority_and_pixel_source[FRAME_WIDTH][4][5];
   uint16_t scanline_special_effects_buffer[FRAME_WIDTH];
+
+  // Semi-Transparent Buffer.
+  bool scanline_semi_transparent_buffer[FRAME_WIDTH];
 
   // Mask sourced from OBJ Windows.
   bool scanline_obj_window_buffer[FRAME_WIDTH];

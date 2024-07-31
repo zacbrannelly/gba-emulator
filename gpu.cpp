@@ -34,6 +34,7 @@ inline void gpu_clear_scanline_buffers(GPU& gpu) {
   memset(gpu.scanline_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
   memset(gpu.scanline_special_effects_buffer, 0, FRAME_WIDTH * sizeof(uint16_t));
   memset(gpu.scanline_obj_window_buffer, 0, FRAME_WIDTH * sizeof(bool));
+  memset(gpu.scanline_semi_transparent_buffer, 0, FRAME_WIDTH * sizeof(bool));
   for (int x = 0; x < FRAME_WIDTH; x++) {
     for (int priority = 0; priority < 4; priority++) {
       for (int pixel_source = 0; pixel_source < 6; pixel_source++) {
@@ -135,6 +136,7 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
 
   uint16_t backdrop_color = gpu_get_backdrop_color(cpu);
 
+  // TODO: Special effects mode is ignored on pixels that contain semi-transparent pixels from OBJ sprites.
   switch (special_effects_mode) {
     case 0: {
       // No special effects
@@ -174,6 +176,10 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
                 target_1_color = color;
                 target_1_source = (PixelSource)k;
               } else if (target_2_color == 0) {
+                if ((PixelSource)k == PIXEL_SOURCE_OBJ && target_1_source == PIXEL_SOURCE_OBJ) {
+                  // Skip OBJ since we already have the top most OBJ pixel.
+                  continue;
+                }
                 // Find 2nd top most pixel for Target 2.
                 target_2_color = color;
                 target_2_source = (PixelSource)k;
@@ -194,6 +200,26 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
 
         // Check if the layers where the targets are coming from are enabled.
         if (!target_1[target_1_source] || !target_2[target_2_source]) continue;
+
+        // Only blend if the OBJ layer is semi-transparent.
+        bool blending_with_obj = target_1_source == PIXEL_SOURCE_OBJ || target_2_source == PIXEL_SOURCE_OBJ;
+        if (blending_with_obj) {
+          if (!gpu.scanline_semi_transparent_buffer[i]) {
+            continue;
+          }
+
+          // OBJ layer is semi-transparent, make sure the OBJ layer is first target.
+          if (target_2_source == PIXEL_SOURCE_OBJ) {
+            // Swap the targets.
+            uint16_t temp_color = target_1_color;
+            target_1_color = target_2_color;
+            target_2_color = temp_color;
+
+            PixelSource temp_source = target_1_source;
+            target_1_source = target_2_source;
+            target_2_source = temp_source;
+          }
+        }
 
         uint8_t target_b_r = (target_2_color & 0x1F);
         uint8_t target_b_g = ((target_2_color >> 5) & 0x1F);
@@ -394,9 +420,6 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
     }
 
     // Handle position wrap-around.
-    if (x_coord > 255) {
-      x_coord -= 256;
-    }
     if (disabled_or_double_size) {
       if (y_coord + bbox_height >= 256) {
         y_coord -= 256;
@@ -409,6 +432,12 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
 
     // Check if the sprite is on this scanline.
     if (scanline < y_coord || scanline >= y_coord + bbox_height) {
+      continue;
+    }
+
+    // Check if sprite is in the display area.
+    // TODO: Properly handle wrap around for the X-direction.
+    if (x_coord >= FRAME_WIDTH) {
       continue;
     }
 
@@ -513,6 +542,10 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
 
         if (obj_mode != OBJ_MODE_WINDOW) {
           gpu.scanline_by_priority_and_pixel_source[x][priority][PIXEL_SOURCE_OBJ] = color;
+
+          if (obj_mode == OBJ_MODE_SEMI_TRANSPARENT) {
+            gpu.scanline_semi_transparent_buffer[x] = true;
+          }
         } else {
           gpu.scanline_obj_window_buffer[x] = true;
         }

@@ -39,7 +39,7 @@ void sprite_debugger_window(CPU& cpu) {
         ImGui::Text("Mode: Regular Sprite");
         break;
       case 1:
-        ImGui::Text("Mode: Affine Sprite");
+        ImGui::Text("Mode: Semi-Transparent");
         break;
       case 2:
         ImGui::Text("Mode: Window");
