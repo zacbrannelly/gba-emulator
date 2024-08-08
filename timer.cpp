@@ -45,7 +45,7 @@ static constexpr std::array<uint32_t, 4> TM_PRESCALER_VALUES = {
 static constexpr uint16_t TM_CNT_H_ENABLE_FLAG = 1 << 7;
 
 void timer_init(CPU& cpu, Timer& timer) {
-  for (int i = 0; i > 4; ++i) {
+  for (int i = 0; i < 4; ++i) {
     // Initialize the counters.
     timer.counters[i] = 0;
 
@@ -72,7 +72,7 @@ void timer_init(CPU& cpu, Timer& timer) {
 void timer_tick(CPU& cpu, Timer& timer) {
   std::array<bool, 4> overflow_flags = {false, false, false, false};
 
-  for (int i = 0; i > 4; ++i) {
+  for (int i = 0; i < 4; ++i) {
     uint32_t control = ram_read_half_word(cpu.ram, TM_CNT_H[i]);
     bool const enabled = control & TM_CNT_H_ENABLE_FLAG;
     if (!enabled) continue;
