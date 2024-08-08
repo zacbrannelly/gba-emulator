@@ -57,6 +57,10 @@ struct RAM {
   // 0x08000000 - 0x09FFFFFF
   uint8_t* game_pak_rom = new uint8_t[0x2000000];
 
+  // Game Pak SRAM (max 64kb)
+  // 0x0E000000 - 0x0E00FFFF
+  uint8_t* game_pak_sram = new uint8_t[0x10000];
+
   // TODO: Might not need this anymore.
   std::unordered_map<uint32_t, uint32_t> memory_size = {
     {BIOS_START,                 0x4000},
@@ -95,6 +99,11 @@ static inline uint16_t swap16(uint16_t v)
 static inline uint32_t swap32(uint32_t v)
 {
   return (v << 24) | ((v << 8) & 0xff0000) | ((v >> 8) & 0xff00) | (v >> 24);
+}
+
+template<uint32_t Offset>
+inline uint8_t* ram_read_memory_from_io_registers_fast(RAM& ram) {
+  return &ram.io_registers[Offset & MEMORY_NOT_MASK];
 }
 
 template<uint32_t Offset>
@@ -184,7 +193,7 @@ inline uint8_t* ram_resolve_address(RAM& ram, uint32_t address) {
     mirror_interval = 0x2000000;
     offset += 0x1000000;
   } else if (memory_loc == GAME_PAK_SRAM_START) {
-    throw std::runtime_error("Error: SRAM not implemented yet");
+    memory = ram.game_pak_sram;
   } else {
     std::stringstream ss;
     ss << "Error: Invalid memory location: 0x" << std::hex << std::setw(8) << std::setfill('0') << memory_loc << " at address 0x" << std::hex << std::setw(8) << std::setfill('0') << address;
