@@ -8,6 +8,12 @@ static constexpr uint32_t FRAME_BUFFER_SIZE = FRAME_WIDTH * FRAME_HEIGHT;
 static constexpr uint32_t FRAME_BUFFER_SIZE_BYTES = FRAME_BUFFER_SIZE * sizeof(uint16_t);
 static constexpr uint32_t FRAME_BUFFER_PITCH = FRAME_WIDTH;
 
+static constexpr uint32_t TILE_SIZE = 8;
+static constexpr uint32_t HALF_TILE_SIZE = 4;
+static constexpr uint32_t TILE_4BPP_BYTES = 32;
+static constexpr uint32_t TILE_8BPP_BYTES = 64;
+static constexpr uint16_t ENABLE_PIXEL = 1 << 15;
+
 enum PixelSource {
   PIXEL_SOURCE_BG0 = 0,
   PIXEL_SOURCE_BG1 = 1,
@@ -22,6 +28,35 @@ enum OBJMode {
   OBJ_MODE_SEMI_TRANSPARENT = 1,
   OBJ_MODE_WINDOW = 2,
   OBJ_MODE_PROHIBITED = 3
+};
+
+struct DisplayControl {
+  uint8_t background_mode : 3;
+  uint8_t reserved : 1;
+  uint8_t display_frame_select : 1;
+  bool hblank_interval_free : 1;
+  bool one_dimensional_mapping : 1;
+  bool force_blank : 1;
+  bool display_bg0 : 1;
+  bool display_bg1 : 1;
+  bool display_bg2 : 1;
+  bool display_bg3 : 1;
+  bool display_obj : 1;
+  bool display_window0 : 1;
+  bool display_window1 : 1;
+  bool display_obj_window : 1;
+};
+
+struct BackgroundControl {
+  uint8_t priority : 2;
+  // 0 - 3, in units of 16kb, where the tile data is stored in VRAM.
+  uint8_t char_base_block : 2;
+  uint8_t reserved : 2;
+  bool mosaic : 1;
+  bool is_256_color_mode : 1;
+  uint8_t screen_base_block : 5;
+  bool display_area_overflow : 1;
+  uint8_t screen_size : 2;
 };
 
 struct GPU {
@@ -61,6 +96,32 @@ inline void gpu_get_obj_affine_params(CPU& cpu, uint16_t attr1, int16_t& pa, int
   pb = rotation_scaling_params[4];
   pc = rotation_scaling_params[8];
   pd = rotation_scaling_params[12];
+}
+
+inline void gpu_get_bg_size_in_tiles(
+  bool is_rotation_scaling,
+  uint8_t screen_size,
+  uint32_t& width,
+  uint32_t& height
+) {
+  switch (screen_size) {
+    case 0:
+      width = is_rotation_scaling ? 16 : 32;
+      height = is_rotation_scaling ? 16 : 32;
+      break;
+    case 1:
+      width = is_rotation_scaling ? 32 : 64;
+      height = is_rotation_scaling ? 32 : 32;
+      break;
+    case 2:
+      width = is_rotation_scaling ? 64 : 32;
+      height = is_rotation_scaling ? 64 : 64;
+      break;
+    case 3:
+      width = is_rotation_scaling ? 128 : 64;
+      height = is_rotation_scaling ? 128 : 64;
+      break;
+  }
 }
 
 inline void gpu_get_obj_size(uint8_t shape_enum, uint8_t size_enum, uint8_t& width, uint8_t& height) {

@@ -50,6 +50,7 @@ if (NOT CI_RUNNER)
         ram_debugger.cpp
         special_effects_debugger.cpp
         window_debugger.cpp
+        bg_debugger.cpp
         emulator.cpp
     )
 

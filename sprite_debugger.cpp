@@ -11,11 +11,6 @@ static int selected_sprite = 0;
 
 static constexpr int SPRITE_PITCH = 64;
 static constexpr int SPRITE_TEXTURE_BUFFER_SIZE = 64 * 64 * sizeof(uint16_t);
-static constexpr int TILE_SIZE = 8;
-static constexpr int HALF_TILE_SIZE = TILE_SIZE / 2;
-static constexpr int TILE_4BPP_SIZE = 32;
-static constexpr int TILE_8BPP_SIZE = 64;
-static constexpr uint16_t ENABLE_PIXEL = 1 << 15;
 
 void sprite_debugger_window(CPU& cpu) {
   if (ImGui::Begin("Sprite Debugger")) {
@@ -171,7 +166,7 @@ void sprite_debugger_window(CPU& cpu) {
     uint8_t height_in_tiles = height / TILE_SIZE;
     uint8_t number_of_tiles = width_in_tiles * height_in_tiles;
 
-    uint8_t tile_size = is_256_color_mode ? TILE_8BPP_SIZE : TILE_4BPP_SIZE;
+    uint8_t tile_size = is_256_color_mode ? TILE_8BPP_BYTES : TILE_4BPP_BYTES;
 
     for (uint8_t tile_offset = 0; tile_offset < number_of_tiles; tile_offset++) {
       uint8_t col_idx = tile_offset % width_in_tiles;

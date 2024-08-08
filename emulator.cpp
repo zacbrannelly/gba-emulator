@@ -16,6 +16,7 @@
 #include "ram_debugger.h"
 #include "special_effects_debugger.h"
 #include "window_debugger.h"
+#include "bg_debugger.h"
 
 #include "3rdparty/zengine/ZEngine-Core/Misc/Factory.h"
 #include "3rdparty/zengine/ZEngine-Core/Input/InputManager.h"
@@ -287,6 +288,7 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
     ram_debugger_window(cpu);
     special_effects_debugger_window(cpu);
     window_debugger_window(cpu);
+    bg_debugger_window(cpu);
 
     gui->EndFrame();
 

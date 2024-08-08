@@ -8,12 +8,6 @@ static constexpr uint16_t REG_LCD_STATUS_VBLANK_INTERRUPT_ENABLE = 1 << 3;
 static constexpr uint16_t REG_LCD_STATUS_HBLANK_INTERRUPT_ENABLE = 1 << 4;
 static constexpr uint16_t REG_LCD_STATUS_VCOUNT_MATCH_INTERRUPT_ENABLE = 1 << 5;
 
-static constexpr uint32_t TILE_SIZE = 8;
-static constexpr uint32_t HALF_TILE_SIZE = 4;
-static constexpr uint32_t TILE_4BPP_BYTES = 32;
-static constexpr uint32_t TILE_8BPP_BYTES = 64;
-static constexpr uint16_t ENABLE_PIXEL = 1 << 15;
-
 void gpu_init(CPU& cpu, GPU& gpu) {
   // Initialize the frame buffer to white.
   for (uint32_t i = 0; i < FRAME_BUFFER_SIZE; i++) {
@@ -208,17 +202,19 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
             continue;
           }
 
+          // TODO: If I disable the following code, the bios screen looks correct.
+          // TODO: Figure out why.
           // OBJ layer is semi-transparent, make sure the OBJ layer is first target.
-          if (target_2_source == PIXEL_SOURCE_OBJ) {
-            // Swap the targets.
-            uint16_t temp_color = target_1_color;
-            target_1_color = target_2_color;
-            target_2_color = temp_color;
+          // if (target_2_source == PIXEL_SOURCE_OBJ) {
+          //   // Swap the targets.
+          //   uint16_t temp_color = target_1_color;
+          //   target_1_color = target_2_color;
+          //   target_2_color = temp_color;
 
-            PixelSource temp_source = target_1_source;
-            target_1_source = target_2_source;
-            target_2_source = temp_source;
-          }
+          //   PixelSource temp_source = target_1_source;
+          //   target_1_source = target_2_source;
+          //   target_2_source = temp_source;
+          // }
         }
 
         uint8_t target_b_r = (target_2_color & 0x1F);
@@ -368,6 +364,129 @@ inline void gpu_resolve_scanline_buffer(CPU& cpu, GPU& gpu) {
           gpu.scanline_buffer[x] = pixel_priority_map[priority][pixel_source];
           break;
         }
+      }
+    }
+  }
+}
+
+void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
+  uint16_t disp_cnt_data = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
+  DisplayControl const& disp_cnt = *(DisplayControl*)&disp_cnt_data;
+
+  uint8_t* vram = cpu.ram.video_ram;
+  uint16_t* palette_ram = (uint16_t*)(cpu.ram.palette_ram);
+  uint8_t* bg_control_mem = ram_read_memory_from_io_registers_fast<REG_BG0_CONTROL>(cpu.ram);
+
+  bool display_bg[4] = {
+    disp_cnt.display_bg0,
+    disp_cnt.display_bg1,
+    disp_cnt.display_bg2,
+    disp_cnt.display_bg3
+  };
+
+  for (int bg = 0; bg < 4; bg++) {
+    // Skip rendering the background if it's not enabled.
+    if (!display_bg[bg]) {
+      continue;
+    }
+
+    BackgroundControl const& bg_control = *(BackgroundControl*)(bg_control_mem + bg * 2);
+    uint8_t* base_bg_tile_ram = vram + bg_control.char_base_block * 0x4000;
+    uint16_t* base_screen_block_ram = (uint16_t*)(vram + bg_control.screen_base_block * 0x800);
+    bool is_rotation_scaling = disp_cnt.background_mode >= 2 || (disp_cnt.background_mode == 1 && bg == 2);
+
+    uint32_t width_in_tiles = 0;
+    uint32_t height_in_tiles = 0;
+    gpu_get_bg_size_in_tiles(
+      is_rotation_scaling,
+      bg_control.screen_size,
+      width_in_tiles,
+      height_in_tiles
+    );
+
+    uint32_t width_in_pixels = width_in_tiles * TILE_SIZE;
+    uint32_t height_in_pixels = height_in_tiles * TILE_SIZE;
+
+    int32_t bg_offset_x = 0;
+    int32_t bg_offset_y = 0;
+
+    int16_t pa = 1 << 8;
+    int16_t pb = 0;
+    int16_t pc = 0;
+    int16_t pd = 1 << 8;
+
+    if (is_rotation_scaling && bg >= 2) {
+      bg_offset_x = bg == 2 
+        ? ram_read_word_from_io_registers_fast<REG_BG2_X_REF>(cpu.ram)
+        : ram_read_word_from_io_registers_fast<REG_BG3_X_REF>(cpu.ram);
+      bg_offset_y = bg == 2 
+        ? ram_read_word_from_io_registers_fast<REG_BG2_Y_REF>(cpu.ram)
+        : ram_read_word_from_io_registers_fast<REG_BG3_Y_REF>(cpu.ram);
+
+      pa = bg == 2
+        ? ram_read_half_word_from_io_registers_fast<REG_BG2_PARAM_A>(cpu.ram)
+        : ram_read_half_word_from_io_registers_fast<REG_BG3_PARAM_A>(cpu.ram);
+      pb = bg == 2
+        ? ram_read_half_word_from_io_registers_fast<REG_BG2_PARAM_B>(cpu.ram)
+        : ram_read_half_word_from_io_registers_fast<REG_BG3_PARAM_B>(cpu.ram);
+      pc = bg == 2
+        ? ram_read_half_word_from_io_registers_fast<REG_BG2_PARAM_C>(cpu.ram)
+        : ram_read_half_word_from_io_registers_fast<REG_BG3_PARAM_C>(cpu.ram);
+      pd = bg == 2
+        ? ram_read_half_word_from_io_registers_fast<REG_BG2_PARAM_D>(cpu.ram)
+        : ram_read_half_word_from_io_registers_fast<REG_BG3_PARAM_D>(cpu.ram);
+    } else {
+      uint8_t* bg_offset_x_mem = ram_read_memory_from_io_registers_fast<REG_BG0_X_OFFSET>(cpu.ram);
+      uint8_t* bg_offset_y_mem = ram_read_memory_from_io_registers_fast<REG_BG0_Y_OFFSET>(cpu.ram);
+
+      bg_offset_x = (int32_t)(*(int16_t*)(bg_offset_x_mem + bg * 4)) & 0x1FF;
+      bg_offset_y = (int32_t)(*(int16_t*)(bg_offset_y_mem + bg * 4)) & 0x1FF;
+    }
+
+    // Formula for calculating the texture coordinates using the screen coordinates:
+    // texture_pos = offset + dot(transform, screen_pos)
+
+    for (int screen_x = 0; screen_x < FRAME_WIDTH; ++screen_x) {
+      // dot(transform, screen_pos)
+      int transformed_x = pa * screen_x + pb * scanline;
+      int transformed_y = pc * screen_x + pd * scanline;
+
+      // offset + dot(transform, screen_pos)
+      int texture_x = (bg_offset_x + transformed_x) >> 8;
+      int texture_y = (bg_offset_y + transformed_y) >> 8;
+
+      // TODO: Handle wrap around.
+      if (texture_x < 0 || texture_x >= width_in_pixels || texture_y < 0 || texture_y >= height_in_pixels) {
+        continue;
+      }
+
+      // Get the tile coordinates.
+      int tile_x = texture_x / TILE_SIZE;
+      int tile_y = texture_y / TILE_SIZE;
+
+      int pos_x_in_tile = texture_x % TILE_SIZE;
+      int pos_y_in_tile = texture_y % TILE_SIZE;
+
+      // Get the tile index.
+      int screen_entry_indx = tile_y * width_in_tiles + tile_x;
+
+      if (is_rotation_scaling) {
+        // 1 byte per entry. Always 256 color mode (8bpp).
+        uint8_t tile_index = ((uint8_t*)base_screen_block_ram)[screen_entry_indx];
+        uint8_t palette_number = *(base_bg_tile_ram + tile_index * TILE_8BPP_BYTES + pos_y_in_tile * TILE_SIZE + pos_x_in_tile);
+        if (palette_number == 0) {
+          // Zero palette number means transparent pixel for backgrounds.
+          continue;
+        }
+
+        uint16_t color = palette_ram[palette_number];
+        if (color > 0) {
+          color |= ENABLE_PIXEL;
+          gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
+        }
+      } else {
+        // TODO: Handle 16/256 color mode for regular backgrounds.
+        // TODO: 2 bytes per screen entry, can be 16 (4bpp) or 256 colors (8bpp).
       }
     }
   }
@@ -588,7 +707,7 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
   }
 
   // BG Layers.
-  // TODO: Implement the logic for each BG layer.
+  gpu_render_bg_layer(cpu, gpu, scanline);
 
   // OBJ Layer.
   gpu_render_obj_layer(cpu, gpu, scanline);
