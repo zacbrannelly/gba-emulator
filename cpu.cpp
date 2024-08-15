@@ -2360,17 +2360,17 @@ void cpu_cycle(CPU& cpu) {
 
 void cpu_interrupt_cycle(CPU& cpu) {
   // IRQ has been triggered externally.
-  uint32_t interrupt_flag = ram_read_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
+  uint16_t interrupt_flag = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
   if (interrupt_flag > 0) {
     // Check CPSR to see if IRQs are disabled
     if ((cpu.cpsr & CPSR_IRQ_DISABLE) > 0) return;
 
     // Check IME to see if interrupts are enabled
-    uint32_t interrupt_master_enable = ram_read_word_from_io_registers_fast<REG_INTERRUPT_MASTER_ENABLE>(cpu.ram);
-    if (interrupt_master_enable > 0) return;
+    bool interrupt_master_enable = ram_read_word_from_io_registers_fast<REG_INTERRUPT_MASTER_ENABLE>(cpu.ram) & 0x1;
+    if (!interrupt_master_enable) return;
 
     // Check if requested interrupt is enabled
-    uint32_t interrupt_enable = ram_read_word_from_io_registers_fast<REG_INTERRUPT_ENABLE>(cpu.ram);
+    uint16_t interrupt_enable = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_ENABLE>(cpu.ram);
     if ((interrupt_flag & interrupt_enable) == 0) return;
 
     // Trigger the IRQ interrupt
@@ -2383,9 +2383,6 @@ void cpu_trigger_irq_interrupt(CPU& cpu) {
   uint32_t current_pc = cpu.get_register_value(PC);
   uint32_t current_cpsr = cpu.cpsr;
 
-  // Fetch the instruction size before switching to Supervisor mode.
-  uint32_t instruction_size = cpu.get_instruction_size();
-
   // Switch to IRQ mode & back to ARM state.
   cpu.cpsr = (cpu.cpsr & ~CPSR_MODE_MASK) | IRQ;
   cpu.cpsr &= ~CPSR_THUMB_STATE;
@@ -2395,7 +2392,8 @@ void cpu_trigger_irq_interrupt(CPU& cpu) {
 
   // Save the current PC to LR, and CPSR to SPSR_irq
   // Make sure to increment the LR to the next instruction.
-  cpu.set_register_value(LR, current_pc + instruction_size);
+  // For IRQ mode, the offset should always be 4, regardless of the ARM/THUMB state.
+  cpu.set_register_value(LR, current_pc + 4);
   cpu.mode_to_scpsr[IRQ] = current_cpsr;
 
   // Set the PC to the IRQ vector
