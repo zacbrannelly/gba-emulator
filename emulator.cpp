@@ -114,6 +114,13 @@ void emulator_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_sta
   // Reset the CPSR to the original value.
   cpu.cpsr = cpsr_backup;
 
+  // Set the key status to all keys being released (0 = pressed, 1 = released).
+  ram_write_half_word_to_io_registers_fast<REG_KEY_STATUS>(cpu.ram, 0x3FF);
+
+  // Supply a dummy value for the Flash ID, which is used by some games to detect the presence of a flash memory chip.
+  ram_write_byte_direct(cpu.ram, GAME_PAK_SRAM_START, 0x62);
+  ram_write_byte_direct(cpu.ram, GAME_PAK_SRAM_START + 1, 0x13);
+
   while(!cpu.killSignal) {
     if (debugger_state.command_queue.size() > 0) {
       // Get the first command from the queue.

@@ -128,32 +128,36 @@ void dma_transfer(CPU& cpu, uint32_t source_addr, uint32_t dest_addr, DMATransfe
   }
 }
 
+struct DMAControl {
+  uint8_t reserved : 5;
+  DMADestinationAddressControl destination_address_control : 2;
+  DMASourceAddressControl source_address_control : 2;
+  bool is_repeat : 1;
+  bool is_word_transfer : 1;
+  bool is_game_pak_drq : 1;
+  DMAStartMode start_mode : 2;
+  bool irq_enable : 1;
+  bool enable : 1;
+};
+
 bool dma_process_channel(CPU& cpu, uint8_t channel) {
   uint32_t source_addr = *(uint32_t*)&cpu.ram.io_registers[DMA_OFFSET_SAD[channel]];
   uint32_t dest_addr = *(uint32_t*)&cpu.ram.io_registers[DMA_OFFSET_DAD[channel]];
   uint16_t word_count = *(uint16_t*)&cpu.ram.io_registers[DMA_OFFSET_CNT_L[channel]];
   uint16_t control = *(uint16_t*)&cpu.ram.io_registers[DMA_OFFSET_CNT_H[channel]];
 
-  auto const dest_control = (DMADestinationAddressControl)((control >> 5) & 0x3);
-  auto const source_control = (DMASourceAddressControl)((control >> 7) & 0x3);
-
-  bool const is_repeat = (control >> 9) & 0x1;
-  auto const transfer_type = (DMATransferType)((control >> 10) & 0x1);
-  auto const start_mode = (DMAStartMode)((control >> 12) & 0x3);
-  bool const irq_enable = (control >> 14) & 0x1;
-  bool const enable = (control >> 15) & 0x1;
+  DMAControl dma_control = *(DMAControl*)&control;
+  auto const dest_control = dma_control.destination_address_control;
+  auto const source_control = dma_control.source_address_control;
+  bool const is_repeat = dma_control.is_repeat;
+  auto const transfer_type = dma_control.is_word_transfer ? TransferTypeWord : TransferTypeHalfWord;
+  auto const start_mode = dma_control.start_mode;
+  bool const irq_enable = dma_control.irq_enable;
+  bool const enable = dma_control.enable;
 
   if (!enable) {
     return false;
   }
-
-  // std::cout << "DMA channel " << (int)channel << " transfer" << std::endl;
-  // std::cout << "  Source Address: 0x" << std::hex << source_addr << std::endl;
-  // std::cout << "  Destination Address: 0x" << std::hex << dest_addr << std::endl;
-  // std::cout << "  Word Count: " << std::dec << word_count << std::endl;
-  // std::cout << "  Start Mode: " << (int)start_mode << std::endl;
-  // std::cout << "  Repeat: " << is_repeat << std::endl;
-  // std::cout << "  Control: 0x" << std::hex << control << std::endl;
 
   if (start_mode == StartModeVBlank) {
     uint16_t display_status = ram_read_half_word(cpu.ram, REG_LCD_STATUS);
@@ -177,6 +181,15 @@ bool dma_process_channel(CPU& cpu, uint8_t channel) {
   if (word_count == 0) {
     final_word_count = channel == 3 ? 0x10000 : 0x4000;
   }
+
+  // std::cout << "DMA channel " << (int)channel << " transfer" << std::endl;
+  // std::cout << "  Triggered by PC: 0x" << std::hex << cpu.get_register_value(PC) << std::endl;
+  // std::cout << "  Source Address: 0x" << std::hex << source_addr << std::endl;
+  // std::cout << "  Destination Address: 0x" << std::hex << dest_addr << std::endl;
+  // std::cout << "  Word Count: " << std::dec << final_word_count << std::endl;
+  // std::cout << "  Start Mode: " << (int)start_mode << std::endl;
+  // std::cout << "  Repeat: " << is_repeat << std::endl;
+  // std::cout << "  Control: 0x" << std::hex << control << std::endl;
 
   for (int i = 0; i < final_word_count; i++) {
     dma_transfer(cpu, source_addr, dest_addr, transfer_type);

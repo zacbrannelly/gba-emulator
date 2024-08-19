@@ -31,6 +31,11 @@ void ram_init(RAM& ram) {
   ram_register_write_hook(ram, REG_INTERRUPT_REQUEST_FLAGS, [](RAM& ram, uint32_t address, uint32_t value) {
     *(uint32_t*)ram_resolve_address(ram, address) &= ~value;
   });
+
+  // Make sure the key status register is read-only.
+  ram_register_write_hook(ram, REG_KEY_STATUS, [](RAM&, uint32_t, uint32_t) {
+    // Do nothing.
+  });
 }
 
 void ram_soft_reset(RAM& ram) {
@@ -41,6 +46,13 @@ void ram_soft_reset(RAM& ram) {
   memset(ram.palette_ram, 0, 0x400);
   memset(ram.video_ram, 0, 0x18000);
   memset(ram.object_attribute_memory, 0, 0x400);
+
+  // Make sure REG_KEY_STATUS is set to all keys being released.
+  ram_write_half_word_to_io_registers_fast<REG_KEY_STATUS>(ram, 0x3FF);
+
+  // Supply a dummy value for the Flash ID, which is used by some games to detect the presence of a flash memory chip.
+  ram_write_byte_direct(ram, GAME_PAK_SRAM_START, 0x62);
+  ram_write_byte_direct(ram, GAME_PAK_SRAM_START + 1, 0x13);
 }
 
 void ram_load_rom(RAM& ram, std::string const& path) {
