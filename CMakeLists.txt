@@ -51,6 +51,7 @@ if (NOT CI_RUNNER)
         special_effects_debugger.cpp
         window_debugger.cpp
         bg_debugger.cpp
+        cpu_debugger.cpp
         emulator.cpp
     )
 

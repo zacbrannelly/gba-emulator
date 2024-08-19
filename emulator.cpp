@@ -4,7 +4,6 @@
 #include <bitset>
 #include <chrono>
 #include <thread>
-#include <queue>
 
 #include "debug.h"
 #include "cpu.h"
@@ -17,6 +16,7 @@
 #include "special_effects_debugger.h"
 #include "window_debugger.h"
 #include "bg_debugger.h"
+#include "cpu_debugger.h"
 
 #include "3rdparty/zengine/ZEngine-Core/Misc/Factory.h"
 #include "3rdparty/zengine/ZEngine-Core/Input/InputManager.h"
@@ -28,27 +28,7 @@
 #include "3rdparty/zengine/ZEngine-Core/ImmediateUI/GUILibrary.h"
 #include "3rdparty/zengine/ZEngine-Core/ImmediateUI/imgui-includes.h"
 
-enum DebuggerMode {
-  NORMAL,
-  DEBUG
-};
-
-enum DebuggerCommand {
-  CONTINUE,
-  STEP,
-  BREAK,
-  NEXT_FRAME,
-  RESET,
-};
-
-struct DebuggerState {
-  uint32_t breakpoint_address;
-  uint32_t step_size = 1;
-  DebuggerMode mode;
-  std::queue<DebuggerCommand> command_queue;
-};
-
-void cycle(CPU& cpu, GPU& gpu, Timer& timer) {
+void cycle(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_state) {
   // PC alignment check.
   if (cpu.cpsr & CPSR_THUMB_STATE) {
     if (cpu.get_register_value(PC) % 2 != 0) {
@@ -59,6 +39,9 @@ void cycle(CPU& cpu, GPU& gpu, Timer& timer) {
       throw std::runtime_error("PC is not aligned to 4 bytes.");
     }
   }
+
+  // Record the current state of the CPU for debugging purposes.
+  cpu_record_state(cpu, debugger_state);
 
   cpu_cycle(cpu);
   cpu_interrupt_cycle(cpu);
@@ -85,7 +68,12 @@ void reset_cpu(CPU& cpu, GPU& gpu, Timer& timer) {
   ram_soft_reset(cpu.ram);
 }
 
-void emulator_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_state) {
+void emulator_loop(
+  CPU& cpu,
+  GPU& gpu,
+  Timer& timer,
+  DebuggerState& debugger_state
+) {
   cpu_init(cpu);
   gpu_init(cpu, gpu);
   timer_init(cpu, timer);
@@ -130,12 +118,12 @@ void emulator_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_sta
       // Process the command.
       switch (command) {
         case CONTINUE:
-          cycle(cpu, gpu, timer);
+          cycle(cpu, gpu, timer, debugger_state);
           debugger_state.mode = NORMAL;
           break;
         case STEP:
           for (int i = 0; i < debugger_state.step_size; i++) {
-            cycle(cpu, gpu, timer);
+            cycle(cpu, gpu, timer, debugger_state);
           }
           debugger_state.mode = DEBUG;
           break;
@@ -149,11 +137,11 @@ void emulator_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_sta
           uint8_t scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
           bool hit_vcount = false;
           while (scanline != 160) {
-            cycle(cpu, gpu, timer);
+            cycle(cpu, gpu, timer, debugger_state);
             scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
           }
           while (scanline == 160) {
-            cycle(cpu, gpu, timer);
+            cycle(cpu, gpu, timer, debugger_state);
             scanline = ram_read_byte_from_io_registers_fast<REG_VERTICAL_COUNT>(cpu.ram);
           }
           break;
@@ -169,73 +157,11 @@ void emulator_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_sta
       continue;
     }
 
-    cycle(cpu, gpu, timer);
+    cycle(cpu, gpu, timer, debugger_state);
   }
 }
 
 static constexpr int VIEW_ID = 0;
-static constexpr uint16_t COLOR_RED = 0x1F;
-
-void cpu_debugger_window(CPU& cpu, DebuggerState& debugger_state) {
-  if (ImGui::Begin("CPU Debugger")) {
-    // Break / Continue button.
-    if (debugger_state.mode == NORMAL) {
-      if (ImGui::Button("Break")) {
-        debugger_state.command_queue.push(BREAK);
-      }
-    } else {
-      if (ImGui::Button("Continue")) {
-        debugger_state.command_queue.push(CONTINUE);
-      }
-    }
-
-    // Step button.
-    ImGui::SameLine();
-    if (ImGui::Button("Step")) {
-      debugger_state.command_queue.push(STEP);
-    }
-
-    // Next Frame button.
-    ImGui::SameLine();
-    if (ImGui::Button("Next Frame")) {
-      debugger_state.command_queue.push(NEXT_FRAME);
-    }
-
-    // Reset button.
-    ImGui::SameLine();
-    if (ImGui::Button("Reset")) {
-      debugger_state.command_queue.push(RESET);
-    }
-
-    // Breakpoint.
-    ImGui::InputScalar("Breakpoint", ImGuiDataType_U32, &debugger_state.breakpoint_address, 0, 0, "%08X", ImGuiInputTextFlags_CharsHexadecimal);
-
-    // Step size.
-    ImGui::InputScalar("Step Size", ImGuiDataType_U32, &debugger_state.step_size, 0, 0, "%d", ImGuiInputTextFlags_CharsDecimal);
-
-    ImGui::Text("PC: 0x%08X", cpu.get_register_value(PC));
-    for (int i = 0; i < 16; i++) {
-      ImGui::Text("R%d: 0x%08X", i, cpu.get_register_value(i));
-    }
-    ImGui::Text("CPSR: 0x%08X", cpu.cpsr);
-
-    if (cpu.cpsr & CPSR_THUMB_STATE) {
-      ImGui::Text("Instruction: 0x%04X", ram_read_half_word(cpu.ram, cpu.get_register_value(PC)));
-    } else {
-      ImGui::Text("Instruction: 0x%08X", ram_read_word(cpu.ram, cpu.get_register_value(PC)));
-    }
-
-    uint16_t reg_interrupt_enable = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_ENABLE>(cpu.ram);
-    uint16_t reg_interrupt_request_flags = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
-    uint16_t reg_interrupt_master_enable = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_MASTER_ENABLE>(cpu.ram);
-    ImGui::Text("Interrupt Enable: 0x%04X", reg_interrupt_enable);
-    ImGui::Text("Interrupt Request Flags: 0x%04X", reg_interrupt_request_flags);
-    ImGui::Text("Interrupt Master Enable: 0x%04X", reg_interrupt_master_enable);
-
-    ImGui::Text("Cycle Count: %llu", cpu.cycle_count);
-  }
-  ImGui::End();
-}
 
 void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
   Factory::Init();
@@ -290,6 +216,7 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
     ImGui::End();
 
     cpu_debugger_window(cpu, debugger_state);
+    cpu_history_window(cpu, debugger_state);
     palette_debugger_window(cpu);
     sprite_debugger_window(cpu);
     ram_debugger_window(cpu);
