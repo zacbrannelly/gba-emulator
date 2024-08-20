@@ -7,6 +7,8 @@
 static int selected_bg = 0;
 static Texture2D* bg_texture = nullptr;
 static uint16_t bg_texture_buffer[1024 * 1024];
+static int view_tile_x = 0;
+static int view_tile_y = 0;
 
 static constexpr int BG_TEXTURE_BUFFER_SIZE = 1024 * 1024 * sizeof(uint16_t);
 
@@ -207,6 +209,11 @@ void bg_debugger_window(CPU& cpu) {
       bg_texture_buffer[i] = 0;
     }
 
+    uint8_t tile_size_bytes = bg_control.is_256_color_mode ? TILE_8BPP_BYTES : TILE_4BPP_BYTES;
+
+    ImGui::InputInt("View Tile X", &view_tile_x);
+    ImGui::InputInt("View Tile Y", &view_tile_y);
+
     for (int tile_y = 0; tile_y < height_in_tiles; tile_y++) {
       int tile_screen_y = tile_y * TILE_SIZE;
       for (int tile_x = 0; tile_x < width_in_tiles; tile_x++) {
@@ -226,8 +233,74 @@ void bg_debugger_window(CPU& cpu) {
             }
           }
         } else {
-          // TODO: Handle 16/256 color mode for regular backgrounds.
-          // TODO: 2 bytes per screen entry, can be 16 (4bpp) or 256 colors (8bpp).
+          // 2 bytes per screen entry, can be 16 (4bpp) or 256 colors (8bpp).
+          int screen_block_idx = 0;
+
+          if (width_in_tiles == height_in_tiles) {
+            screen_block_idx = (tile_y / 32) * (width_in_tiles / 32) + (tile_x / 32);
+          } else if (width_in_tiles > height_in_tiles) {
+            screen_block_idx = tile_x / 32;
+          } else {
+            screen_block_idx = tile_y / 32;
+          }
+
+          int screen_entry_idx = screen_block_idx * 0x400 + (tile_y % 32) * 32 + (tile_x % 32);
+          uint16_t screen_entry = base_screen_block_ram[screen_entry_idx];
+          
+          uint16_t tile_number = screen_entry & 0x3FF;
+          uint8_t flip_mode = (screen_entry >> 10) & 0x3;
+          bool horizontal_flip = flip_mode & 0x1;
+          bool vertical_flip = flip_mode & 0x2;
+          uint8_t palette_bank = (screen_entry >> 12) & 0xF;
+
+          if (tile_x == view_tile_x && tile_y == view_tile_y) {
+            ImGui::Text("Screen Entry: 0x%04X", screen_entry);
+            ImGui::Text("Tile Number: %d", tile_number);
+            ImGui::Text("Flip Mode: %d", flip_mode);
+            ImGui::Text("Horizontal Flip: %d", horizontal_flip);
+            ImGui::Text("Vertical Flip: %d", vertical_flip);
+            ImGui::Text("Palette Bank: %d", palette_bank);
+            ImGui::Text("Screen Entry Index: %d", screen_entry_idx);
+          }
+
+          uint8_t* tile_data = &base_bg_tile_ram[tile_number * tile_size_bytes];
+          if (bg_control.is_256_color_mode) {
+            for (int y = 0; y < TILE_SIZE; y++) {
+              for (int x = 0; x < TILE_SIZE; x++) {
+                // TODO: This code path is untested.
+                uint8_t palette_idx = tile_data[y * TILE_SIZE + x];
+                uint16_t color = palette_ram[palette_idx];
+
+                uint8_t x_flip = horizontal_flip ? TILE_SIZE - x - 1 : x;
+                uint8_t y_flip = vertical_flip ? TILE_SIZE - y - 1 : y;
+
+                if (color > 0) {
+                  bg_texture_buffer[(tile_screen_y + y_flip) * width_in_pixels + tile_screen_x + x_flip] = color | ENABLE_PIXEL;
+                }
+              }
+            }
+          } else {
+            for (int y = 0; y < TILE_SIZE; y++) {
+              for (int x = 0; x < HALF_TILE_SIZE; x++) {
+                uint8_t palette_indices = tile_data[y * HALF_TILE_SIZE + x];
+                uint8_t palette_idx_left = palette_indices & 0xF;
+                uint8_t palette_idx_right = (palette_indices >> 4) & 0xF;
+
+                uint8_t x_flip = horizontal_flip ? HALF_TILE_SIZE - x - 1 : x;
+                uint8_t y_flip = vertical_flip ? TILE_SIZE - y - 1 : y;
+
+                uint16_t color_left = palette_ram[palette_bank * 16 + palette_idx_left];
+                if (color_left > 0) {
+                  bg_texture_buffer[(tile_screen_y + y_flip) * width_in_pixels + tile_screen_x + x_flip * 2] = color_left | ENABLE_PIXEL;
+                }
+
+                uint16_t color_right = palette_ram[palette_bank * 16 + palette_idx_right];
+                if (color_right > 0) {
+                  bg_texture_buffer[(tile_screen_y + y_flip) * width_in_pixels + tile_screen_x + x_flip * 2 + 1] = color_right | ENABLE_PIXEL;
+                }
+              }
+            }
+          }
         }
       }
     }
