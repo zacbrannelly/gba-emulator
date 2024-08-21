@@ -439,6 +439,7 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
       uint8_t* bg_offset_x_mem = ram_read_memory_from_io_registers_fast<REG_BG0_X_OFFSET>(cpu.ram);
       uint8_t* bg_offset_y_mem = ram_read_memory_from_io_registers_fast<REG_BG0_Y_OFFSET>(cpu.ram);
 
+      // TODO: Fix this, doesn't seem to be working...
       bg_offset_x = (int32_t)(*(int16_t*)(bg_offset_x_mem + bg * 4)) & 0x1FF;
       bg_offset_y = (int32_t)(*(int16_t*)(bg_offset_y_mem + bg * 4)) & 0x1FF;
     }
@@ -607,9 +608,7 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
     uint16_t tile_base = attr2 & 0x3FF;
     uint8_t palette_number = attr2 >> 12; // 16 colors mode only
 
-    if (!is_256_color_mode) {
-      sprite_palette_ram += palette_number * 16;
-    } else {
+    if (is_256_color_mode) {
       // First bit of tile number is ignored when in 256 color mode.
       tile_base >>= 1;
     }
@@ -713,26 +712,17 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
           gpu.scanline_obj_window_buffer[x] = true;
         }
       } else {
-        // TODO: This code path is untested.
         uint8_t palette_indices = current_tile[texture_y_in_tile * HALF_TILE_SIZE + texture_x_in_tile / 2];
-        uint16_t color_left = sprite_palette_ram[palette_indices & 0xF];
-        uint16_t color_right = sprite_palette_ram[palette_indices >> 4];
-
-        if (color_left > 0) {
+        uint8_t palette_idx = texture_x_in_tile % 2 == 0
+          ? palette_indices & 0xF
+          : (palette_indices >> 4) & 0xF;
+        uint16_t color = sprite_palette_ram[palette_number * 16 + palette_idx];
+        if (color > 0) {
           if (obj_mode != OBJ_MODE_WINDOW) {
-            color_left |= ENABLE_PIXEL;
-            gpu.scanline_by_priority_and_pixel_source[x][priority][PIXEL_SOURCE_OBJ] = color_left;
+            color |= ENABLE_PIXEL;
+            gpu.scanline_by_priority_and_pixel_source[x][priority][PIXEL_SOURCE_OBJ] = color;
           } else {
             gpu.scanline_obj_window_buffer[x] = true;
-          }
-        }
-
-        if (color_right > 0) {
-          if (obj_mode != OBJ_MODE_WINDOW) {
-            color_right |= ENABLE_PIXEL;
-            gpu.scanline_by_priority_and_pixel_source[x + 1][priority][PIXEL_SOURCE_OBJ] = color_right;
-          } else {
-            gpu.scanline_obj_window_buffer[x + 1] = true;
           }
         }
       }

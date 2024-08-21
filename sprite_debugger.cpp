@@ -83,7 +83,7 @@ void sprite_debugger_window(CPU& cpu) {
       ImGui::Checkbox("Double Size", &double_size);
 
       // Matrix
-      uint8_t matrix_index = (attr1 & (0xF << 9)) >> 9;
+      uint8_t matrix_index = (attr1 >> 9) & 0x1F;
       ImGui::Text("Matrix Index: %d", matrix_index);
 
       // Rotation / Scaling parameters

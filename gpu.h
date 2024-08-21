@@ -90,7 +90,7 @@ inline void gpu_get_obj_affine_params(CPU& cpu, uint16_t attr1, int16_t& pa, int
   // 6th Group - PA=070000A6, PB=070000AE, PC=070000B6, PD=070000BE
   // 7th Group - PA=070000C6, PB=070000CE, PC=070000D6, PD=070000DE
   // etc.
-  uint8_t matrix_index = (attr1 & (0xF << 9)) >> 9;
+  uint8_t matrix_index = (attr1 >> 9) & 0x1F;
   int16_t* rotation_scaling_params = (int16_t*)(cpu.ram.object_attribute_memory + 0x6 + matrix_index * 0x20);
   pa = rotation_scaling_params[0];
   pb = rotation_scaling_params[4];
