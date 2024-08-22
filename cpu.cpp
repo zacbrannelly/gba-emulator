@@ -1592,16 +1592,23 @@ void decode_thumb_alu_operations(CPU& cpu, uint32_t instruction) {
       break;
     case 2:
       // movs rd, rd, lsl rs
-      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | (source_register << 8);
+      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | (source_register << 8) | (destination_register & 0xFF);
       break;
     case 3:
       // movs rd, rd, lsr rs
-      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | ARM_LSR_COMPONENT | (source_register << 8);
+      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | ARM_LSR_COMPONENT | (source_register << 8) | (destination_register & 0xFF);
       break;
-    case 4:
-      // movs rd, rd, asr rs
-      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | ARM_ASR_COMPONENT | (source_register << 8);
+    case 4: {
+      if (cpu.get_register_value(source_register) == 0) {
+        // EDGE CASE: ASR by 0 should be translated to LSL by 0 since ASR 0 is equivalent thus the instruction code is reserved for another purpose.
+        // movs rd, rd, lsl #0
+        arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | (destination_register & 0xFF);
+      } else {
+        // movs rd, rd, asr rs
+        arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | ARM_ASR_COMPONENT | (source_register << 8) | (destination_register & 0xFF);
+      }
       break;
+    }
     case 5:
       // adcs rd, rd, rs
       arm_instruction = ARM_ADC_REGISTER_OPCODE | rd_rd_component | source_register;
