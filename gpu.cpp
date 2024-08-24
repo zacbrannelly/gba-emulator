@@ -444,17 +444,25 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
       bg_offset_y = (int32_t)(*(int16_t*)(bg_offset_y_mem + bg * 4)) & 0x1FF;
     }
 
-    // Formula for calculating the texture coordinates using the screen coordinates:
-    // texture_pos = offset + dot(transform, screen_pos)
-
     for (int screen_x = 0; screen_x < FRAME_WIDTH; ++screen_x) {
-      // dot(transform, screen_pos)
-      int transformed_x = pa * screen_x + pb * scanline;
-      int transformed_y = pc * screen_x + pd * scanline;
+      int texture_x = 0;
+      int texture_y = 0;
 
-      // offset + dot(transform, screen_pos)
-      int texture_x = (bg_offset_x + transformed_x) >> 8;
-      int texture_y = (bg_offset_y + transformed_y) >> 8;
+      if (is_rotation_scaling) {
+        // Formula for calculating the texture coordinates using the screen coordinates:
+        // texture_pos = offset + dot(transform, screen_pos)
+        
+        // dot(transform, screen_pos)
+        int transformed_x = pa * screen_x + pb * scanline;
+        int transformed_y = pc * screen_x + pd * scanline;
+
+        // offset + dot(transform, screen_pos)
+        texture_x = (bg_offset_x + transformed_x) >> 8;
+        texture_y = (bg_offset_y + transformed_y) >> 8;
+      } else {
+        texture_x = (screen_x + bg_offset_x) % width_in_pixels;
+        texture_y = (scanline + bg_offset_y) % height_in_pixels;
+      }
 
       // TODO: Handle wrap around.
       if (texture_x < 0 || texture_x >= width_in_pixels || texture_y < 0 || texture_y >= height_in_pixels) {
