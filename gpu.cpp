@@ -192,9 +192,6 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
           target_2_color = backdrop_color;
         }
 
-        // Check if the layers where the targets are coming from are enabled.
-        if (!target_1[target_1_source] || !target_2[target_2_source]) continue;
-
         // Only blend if the OBJ layer is semi-transparent.
         bool blending_with_obj = target_1_source == PIXEL_SOURCE_OBJ || target_2_source == PIXEL_SOURCE_OBJ;
         if (blending_with_obj) {
@@ -215,7 +212,12 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
           //   target_1_source = target_2_source;
           //   target_2_source = temp_source;
           // }
-        }
+        } 
+        // If not a semi-transparent OBJ, make sure target 1 is enabled for blending.
+        else if (!target_1[target_1_source]) continue;
+          
+        // Always check if target 2 is enabled for blending.
+        if (!target_2[target_2_source]) continue;
 
         uint8_t target_b_r = (target_2_color & 0x1F);
         uint8_t target_b_g = ((target_2_color >> 5) & 0x1F);
@@ -710,21 +712,12 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
         uint8_t palette_idx = current_tile[texture_y_in_tile * TILE_SIZE + texture_x_in_tile];
         uint16_t color = sprite_palette_ram[palette_idx];
 
-        if (color > 0) {
-          color |= ENABLE_PIXEL;
-        } else {
-          // Skip transparent pixels.
-          continue;
-        }
+        // Skip transparent pixels.
+        if (color == 0) continue;
 
         if (obj_mode != OBJ_MODE_WINDOW) {
+          color |= ENABLE_PIXEL;
           gpu.scanline_by_priority_and_pixel_source[x][priority][PIXEL_SOURCE_OBJ] = color;
-
-          if (obj_mode == OBJ_MODE_SEMI_TRANSPARENT) {
-            gpu.scanline_semi_transparent_buffer[x] = true;
-          }
-        } else {
-          gpu.scanline_obj_window_buffer[x] = true;
         }
       } else {
         uint8_t palette_indices = current_tile[texture_y_in_tile * HALF_TILE_SIZE + texture_x_in_tile / 2];
@@ -734,16 +727,18 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
         uint16_t color = sprite_palette_ram[palette_number * 16 + palette_idx];
        
         // Zero palette index means transparent pixel.
-        if (palette_idx == 0 || color == 0) {
-          continue;
-        }
+        if (palette_idx == 0 || color == 0) continue;
         
         if (obj_mode != OBJ_MODE_WINDOW) {
           color |= ENABLE_PIXEL;
           gpu.scanline_by_priority_and_pixel_source[x][priority][PIXEL_SOURCE_OBJ] = color;
-        } else {
-          gpu.scanline_obj_window_buffer[x] = true;
         }
+      }
+
+      if (obj_mode == OBJ_MODE_SEMI_TRANSPARENT) {
+        gpu.scanline_semi_transparent_buffer[x] = true;
+      } else if (obj_mode == OBJ_MODE_WINDOW) {
+        gpu.scanline_obj_window_buffer[x] = true;
       }
     }
   }
