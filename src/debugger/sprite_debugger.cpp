@@ -1,5 +1,5 @@
 #include <string>
-#include "gpu.h"
+#include "../gpu.h"
 #include "sprite_debugger.h"
 
 #include "3rdparty/zengine/ZEngine-Core/Rendering/Texture2D.h"

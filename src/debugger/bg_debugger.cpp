@@ -1,5 +1,5 @@
 #include "bg_debugger.h"
-#include "gpu.h"
+#include "../gpu.h"
 
 #include "3rdparty/zengine/ZEngine-Core/Rendering/Texture2D.h"
 #include "3rdparty/zengine/ZEngine-Core/ImmediateUI/imgui-includes.h"

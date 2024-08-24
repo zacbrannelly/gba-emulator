@@ -3,7 +3,7 @@
 #include <queue>
 #include <list>
 #include <mutex>
-#include "cpu.h"
+#include "../cpu.h"
 
 enum DebuggerMode {
   NORMAL,

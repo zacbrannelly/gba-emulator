@@ -74,10 +74,10 @@ void cpu_history_window(CPU& cpu, DebuggerState& debugger_state) {
         : debugger_state.cpu_history.end();
       for (auto it = begin; it != end; ++it) {
         // Show PC for each state as a selectable button.
-        char label[256];
-        sprintf(label, "0x%08X ##%i", it->pc, i);
+        std::stringstream ss;
+        ss << "0x" << std::hex << it->pc << " ##" << i;
 
-        if (ImGui::Selectable(label, selected_history_index == i)) {
+        if (ImGui::Selectable(ss.str().c_str(), selected_history_index == i)) {
           selected_history_index = i;
           selected_cpu_state = *it;
         }
@@ -106,7 +106,7 @@ void cpu_history_window(CPU& cpu, DebuggerState& debugger_state) {
 
     std::stringstream ss;
     ss << "Page " << debugger_state.history_page + 1 << " of " << debugger_state.cpu_history_pages.size();
-    ImGui::Text(ss.str().c_str());
+    ImGui::Text("%s", ss.str().c_str());
 
     if (selected_history_index >= 0) {
       ImGui::Text("PC: 0x%08X", selected_cpu_state.pc);

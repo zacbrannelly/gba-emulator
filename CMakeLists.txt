@@ -45,13 +45,13 @@ if (NOT CI_RUNNER)
     # Emulator executable
     add_executable(emulator
         ${COMMON_SOURCES}
-        src/palette_debugger.cpp
-        src/sprite_debugger.cpp
-        src/ram_debugger.cpp
-        src/special_effects_debugger.cpp
-        src/window_debugger.cpp
-        src/bg_debugger.cpp
-        src/cpu_debugger.cpp
+        src/debugger/palette_debugger.cpp
+        src/debugger/sprite_debugger.cpp
+        src/debugger/ram_debugger.cpp
+        src/debugger/special_effects_debugger.cpp
+        src/debugger/window_debugger.cpp
+        src/debugger/bg_debugger.cpp
+        src/debugger/cpu_debugger.cpp
         src/emulator.cpp
     )
 
