@@ -485,16 +485,13 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
         int screen_entry_idx = tile_y * width_in_tiles + tile_x;
         uint8_t tile_index = ((uint8_t*)base_screen_block_ram)[screen_entry_idx];
         uint8_t palette_number = *(base_bg_tile_ram + tile_index * tile_size_bytes + pos_y_in_tile * TILE_SIZE + pos_x_in_tile);
-        if (palette_number == 0) {
-          // Zero palette number means transparent pixel for backgrounds.
-          continue;
-        }
+        
+        // Zero palette number means transparent pixel for backgrounds.
+        if (palette_number == 0) continue;
 
         uint16_t color = palette_ram[palette_number];
-        if (color > 0) {
-          color |= ENABLE_PIXEL;
-          gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
-        }
+        color |= ENABLE_PIXEL;
+        gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
       } else {
         // 2 bytes per screen entry, can be 16 (4bpp) or 256 colors (8bpp).
         int screen_block_idx = 0;
@@ -526,21 +523,24 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
           // TODO: This code path is untested.
           uint8_t palette_index = tile_data[pos_y_in_tile * TILE_SIZE + pos_x_in_tile];
           uint16_t color = palette_ram[palette_index];
-          if (color > 0) {
-            color |= ENABLE_PIXEL;
-            gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
-          }
+
+          // Skip transparent pixels.
+          if (palette_index == 0) continue;
+
+          color |= ENABLE_PIXEL;
+          gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
         } else {
           uint8_t palette_indices = tile_data[pos_y_in_tile * HALF_TILE_SIZE + pos_x_in_tile / 2];
           uint8_t palette_index = pos_x_in_tile % 2 == 0
             ? palette_indices & 0xF 
             : (palette_indices >> 4) & 0xF;
+
+          // Skip transparent pixels.
+          if (palette_index == 0) continue;
           
           uint16_t color = palette_ram[palette_bank * 16 + palette_index];
-          if (color > 0) {
-            color |= ENABLE_PIXEL;
-            gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
-          }
+          color |= ENABLE_PIXEL;
+          gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
         }
       }
     }
@@ -548,15 +548,18 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
 }
 
 void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
-  uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
-  bool is_one_dimensional = disp_cnt & (1 << 6);
+  uint16_t disp_cnt_data = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
+  DisplayControl const& disp_cnt = *(DisplayControl*)&disp_cnt_data;
 
   uint8_t* vram = cpu.ram.video_ram;
   uint16_t* oam = (uint16_t*)cpu.ram.object_attribute_memory;
   uint16_t* sprite_palette_ram = (uint16_t*)(cpu.ram.palette_ram + 0x200);
-
-  // TODO: This changes depending on the background mode.
   uint8_t* base_sprite_tile_ram = vram + 0x10000;
+
+  // Sprite RAM changes depending on the background mode.
+  if (disp_cnt.background_mode >= 3) {
+    base_sprite_tile_ram += 0x4000;
+  }
 
   for (int i = 127; i >= 0; i--) {
     uint16_t attr0 = oam[i * 4];
@@ -594,16 +597,14 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
     }
 
     // Handle position wrap-around.
-    if (disabled_or_double_size) {
+    if (disabled_or_double_size && y_coord + bbox_height > 256) {
       // Edge case: double size sprites that are at the edge of the screen.
-      if (y_coord + bbox_height > 256) {
-        y_coord -= 256;
-      }
+      y_coord -= 256;
     } else if (y_coord > 127) {
       // Make sure y_coord is in range [-128, 127]
       y_coord -= 256;
     }
-
+  
     // Check if the sprite is on this scanline.
     if (scanline < y_coord || scanline >= y_coord + bbox_height) {
       continue;
@@ -694,7 +695,7 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
       uint8_t row_idx = texture_y / TILE_SIZE;
 
       uint16_t tile_idx = tile_base + row_idx * width_in_tiles + col_idx;
-      if (!is_one_dimensional) {
+      if (!disp_cnt.one_dimensional_mapping) {
         if (is_256_color_mode) {
           tile_idx = tile_base + row_idx * 16 + col_idx;
         } else {
@@ -713,7 +714,7 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
         uint16_t color = sprite_palette_ram[palette_idx];
 
         // Skip transparent pixels.
-        if (color == 0) continue;
+        if (palette_idx == 0) continue;
 
         if (obj_mode != OBJ_MODE_WINDOW) {
           color |= ENABLE_PIXEL;
@@ -726,8 +727,8 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
           : (palette_indices >> 4) & 0xF;
         uint16_t color = sprite_palette_ram[palette_number * 16 + palette_idx];
        
-        // Zero palette index means transparent pixel.
-        if (palette_idx == 0 || color == 0) continue;
+        // Skip transparent pixels.
+        if (palette_idx == 0) continue;
         
         if (obj_mode != OBJ_MODE_WINDOW) {
           color |= ENABLE_PIXEL;
