@@ -597,11 +597,13 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
     }
 
     // Handle position wrap-around.
+    if (y_coord > 160) {
+      // Make sure y_coord is in range [-128, 127]
+      y_coord -= 256;
+    }
+
     if (disabled_or_double_size && y_coord + bbox_height > 256) {
       // Edge case: double size sprites that are at the edge of the screen.
-      y_coord -= 256;
-    } else if (y_coord > 127) {
-      // Make sure y_coord is in range [-128, 127]
       y_coord -= 256;
     }
   
