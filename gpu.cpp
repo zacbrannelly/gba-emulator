@@ -642,8 +642,8 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
     uint8_t center_x_texture_space = width / 2;
     uint8_t center_y_texture_space = height / 2;
 
-    uint16_t center_x_screen_space = x_coord + half_width;
-    uint16_t center_y_screen_space = y_coord + half_height;
+    int16_t center_x_screen_space = x_coord + half_width;
+    int16_t center_y_screen_space = y_coord + half_height;
 
     OBJMode obj_mode = (OBJMode)((attr0 >> 10) & 0x3);
     uint8_t priority = (attr2 >> 10) & 0x3;
