@@ -11,7 +11,7 @@ mkdir -p $BUILD_DIR
 cmake -DBUILD_TESTS=OFF -S . -B $BUILD_DIR
 
 # Build the emulator
-cmake --build $BUILD_DIR --target emulator -j 12
+cmake --build $BUILD_DIR --target emulator -j $(nproc)
 
 # Run the emulator
 $BUILD_DIR/emulator

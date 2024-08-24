@@ -79,6 +79,9 @@ void emulator_loop(
   timer_init(cpu, timer);
   
   ram_load_bios(cpu.ram, "gba_bios.bin");
+  
+  // TODO: Make this configurable in the debugger UI.
+  // ram_load_rom(cpu.ram, "AGB_CHECKER_TCHK30.gba");
   ram_load_rom(cpu.ram, "pokemon_emerald.gba");
 
   // Start from the beginning of the ROM.

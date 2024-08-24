@@ -3,7 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
-#include <cpu.h>
+#include "cpu.h"
 
 inline void debug_print_cpu_state(CPU& cpu) {
   std::cout << "PC: " << std::hex << cpu.get_register_value(PC) << std::endl;

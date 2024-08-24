@@ -20,11 +20,11 @@ option(CI_RUNNER "Build only the test runner" OFF)
 
 # Define source files
 set(COMMON_SOURCES
-    cpu.cpp
-    ram.cpp
-    dma.cpp
-    timer.cpp
-    gpu.cpp
+    src/cpu.cpp
+    src/ram.cpp
+    src/dma.cpp
+    src/timer.cpp
+    src/gpu.cpp
 )
 
 # Only build emulator if not running in CI
@@ -45,14 +45,14 @@ if (NOT CI_RUNNER)
     # Emulator executable
     add_executable(emulator
         ${COMMON_SOURCES}
-        palette_debugger.cpp
-        sprite_debugger.cpp
-        ram_debugger.cpp
-        special_effects_debugger.cpp
-        window_debugger.cpp
-        bg_debugger.cpp
-        cpu_debugger.cpp
-        emulator.cpp
+        src/palette_debugger.cpp
+        src/sprite_debugger.cpp
+        src/ram_debugger.cpp
+        src/special_effects_debugger.cpp
+        src/window_debugger.cpp
+        src/bg_debugger.cpp
+        src/cpu_debugger.cpp
+        src/emulator.cpp
     )
 
     # Add include directories
