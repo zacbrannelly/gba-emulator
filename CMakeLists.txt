@@ -79,7 +79,7 @@ if(BUILD_TESTS)
         3rdparty/catch_amalgamated.cpp
     )
 
-    target_include_directories(test_runner PRIVATE ${CMAKE_SOURCE_DIR})
+    target_include_directories(test_runner PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_include_directories(test_runner PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty)
 
     # Custom target for running tests
