@@ -832,10 +832,6 @@ void decode_multiply(CPU& cpu, uint32_t opcode) {
     throw std::runtime_error("PC register cannot be an operand");
   }
 
-  if (operand_1_register == destination_register) {
-    throw std::runtime_error("Operand 1 register cannot be the destination register");
-  }
-
   multiply_op(
     cpu,
     destination_register,
@@ -865,10 +861,6 @@ void decode_multiply_long(CPU& cpu, uint32_t opcode) {
 
   if (operand_1_register == PC || operand_2_register == PC) {
     throw std::runtime_error("PC register cannot be an operand");
-  }
-
-  if (operand_2_register == destination_register_low || operand_2_register == destination_register_high) {
-    throw std::runtime_error("Operand 1 register cannot be the destination register");
   }
 
   if (destination_register_high == destination_register_low) {
