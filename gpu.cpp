@@ -607,10 +607,9 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
       continue;
     }
 
-    // Check if sprite is in the display area.
-    // TODO: Properly handle wrap around for the X-direction.
-    if (x_coord >= FRAME_WIDTH) {
-      continue;
+    // Make sure x_coord is in range [-256, 255]
+    if (x_coord > 255) {
+      x_coord -= 512;
     }
 
     uint16_t tile_base = attr2 & 0x3FF;
@@ -641,17 +640,24 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
     uint8_t center_x_texture_space = width / 2;
     uint8_t center_y_texture_space = height / 2;
 
-    uint8_t center_x_screen_space = x_coord + half_width;
-    uint8_t center_y_screen_space = y_coord + half_height;
+    uint16_t center_x_screen_space = x_coord + half_width;
+    uint16_t center_y_screen_space = y_coord + half_height;
 
     OBJMode obj_mode = (OBJMode)((attr0 >> 10) & 0x3);
     uint8_t priority = (attr2 >> 10) & 0x3;
 
-    // TODO: Refactor this to avoid a loop, it's not necessary.
     int iy = y_in_draw_area - half_height;
     for (int ix = -half_width; ix < half_width; ix++) {
-      int texture_x = (pa * ix + pb * iy) >> 8;
-      int texture_y = (pc * ix + pd * iy) >> 8;
+      int texture_x = 0;
+      int texture_y = 0;
+
+      if (rotation_scaling) {
+        texture_x = (pa * ix + pb * iy) >> 8;
+        texture_y = (pc * ix + pd * iy) >> 8;
+      } else {
+        texture_x = ix;
+        texture_y = iy;
+      }
 
       texture_x += center_x_texture_space;
       texture_y += center_y_texture_space;
@@ -726,17 +732,17 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
           ? palette_indices & 0xF
           : (palette_indices >> 4) & 0xF;
         uint16_t color = sprite_palette_ram[palette_number * 16 + palette_idx];
-        if (palette_idx == 0) {
-          // Zero palette index means transparent pixel.
+       
+        // Zero palette index means transparent pixel.
+        if (palette_idx == 0 || color == 0) {
           continue;
         }
-        if (color > 0) {
-          if (obj_mode != OBJ_MODE_WINDOW) {
-            color |= ENABLE_PIXEL;
-            gpu.scanline_by_priority_and_pixel_source[x][priority][PIXEL_SOURCE_OBJ] = color;
-          } else {
-            gpu.scanline_obj_window_buffer[x] = true;
-          }
+        
+        if (obj_mode != OBJ_MODE_WINDOW) {
+          color |= ENABLE_PIXEL;
+          gpu.scanline_by_priority_and_pixel_source[x][priority][PIXEL_SOURCE_OBJ] = color;
+        } else {
+          gpu.scanline_obj_window_buffer[x] = true;
         }
       }
     }
