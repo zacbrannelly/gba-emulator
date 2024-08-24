@@ -4,7 +4,7 @@ Toy Game Boy Advance emulator written in C++.
 
 Powered by [ZEngine](https://github.com/zacbrannelly/zengine).
 
-![Screenshot](./screenshot.png)
+![Screenshot](.github/screenshot.png)
 
 ## Usage
 
