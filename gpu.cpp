@@ -20,7 +20,7 @@ void gpu_init(CPU& cpu, GPU& gpu) {
 inline uint16_t gpu_get_backdrop_color(CPU& cpu) {
   uint16_t* bg_palette_ram = (uint16_t*)(cpu.ram.palette_ram);
   uint16_t backdrop_color = bg_palette_ram[0];
-  return backdrop_color > 0 ? backdrop_color | ENABLE_PIXEL : 0;
+  return backdrop_color > 0 ? backdrop_color | ENABLE_PIXEL : ENABLE_PIXEL;
 }
 
 inline void gpu_clear_scanline_buffers(GPU& gpu) {
