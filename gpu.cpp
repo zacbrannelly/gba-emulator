@@ -639,6 +639,7 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
     OBJMode obj_mode = (OBJMode)((attr0 >> 10) & 0x3);
     uint8_t priority = (attr2 >> 10) & 0x3;
 
+    // TODO: Refactor this to avoid a loop, it's not necessary.
     int iy = y_in_draw_area - half_height;
     for (int ix = -half_width; ix < half_width; ix++) {
       int texture_x = (pa * ix + pb * iy) >> 8;
@@ -717,6 +718,10 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
           ? palette_indices & 0xF
           : (palette_indices >> 4) & 0xF;
         uint16_t color = sprite_palette_ram[palette_number * 16 + palette_idx];
+        if (palette_idx == 0) {
+          // Zero palette index means transparent pixel.
+          continue;
+        }
         if (color > 0) {
           if (obj_mode != OBJ_MODE_WINDOW) {
             color |= ENABLE_PIXEL;
