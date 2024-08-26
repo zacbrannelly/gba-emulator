@@ -20,26 +20,27 @@ void ram_debugger_window(CPU& cpu) {
     ImGui::Combo("Data Type", &ram_debugger_dtype, "Byte\0Halfword\0Word\0\0");
     ImGui::InputScalar("Data Length", ImGuiDataType_U32, &ram_debugger_length, 0, 0, "%d", ImGuiInputTextFlags_CharsDecimal);
 
-    ImGui::BeginListBox("RAM Data", ImVec2(0, 200 + ram_debugger_length * 20));
-    for (int i = 0; i < ram_debugger_length; i++) {
-      uint32_t address = ram_debugger_address + i * (1 << ram_debugger_dtype);
-      uint32_t data = 0;
-      switch ((DataType)ram_debugger_dtype) {
-        case DataType::BYTE:
-          data = ram_read_byte_direct(cpu.ram, address);
-          ImGui::Text("0x%08X: 0x%02X", address, data);
-          break;
-        case DataType::HALFWORD:
-          data = ram_read_half_word_direct(cpu.ram, address);
-          ImGui::Text("0x%08X: 0x%04X", address, data);
-          break;
-        case DataType::WORD:
-          data = ram_read_word_direct(cpu.ram, address);
-          ImGui::Text("0x%08X: 0x%08X", address, data);
-          break;
+    if (ImGui::BeginListBox("RAM Data", ImVec2(0, 200 + ram_debugger_length * 20))) {
+      for (int i = 0; i < ram_debugger_length; i++) {
+        uint32_t address = ram_debugger_address + i * (1 << ram_debugger_dtype);
+        uint32_t data = 0;
+        switch ((DataType)ram_debugger_dtype) {
+          case DataType::BYTE:
+            data = ram_read_byte_direct(cpu.ram, address);
+            ImGui::Text("0x%08X: 0x%02X", address, data);
+            break;
+          case DataType::HALFWORD:
+            data = ram_read_half_word_direct(cpu.ram, address);
+            ImGui::Text("0x%08X: 0x%04X", address, data);
+            break;
+          case DataType::WORD:
+            data = ram_read_word_direct(cpu.ram, address);
+            ImGui::Text("0x%08X: 0x%08X", address, data);
+            break;
+        }
       }
+      ImGui::EndListBox();
     }
-    ImGui::EndListBox();
   }
   ImGui::End();
 

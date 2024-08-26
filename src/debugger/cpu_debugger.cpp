@@ -61,32 +61,31 @@ void cpu_history_window(CPU& cpu, DebuggerState& debugger_state) {
       debugger_state.cpu_history_mutex.unlock();
     }
 
-    ImGui::BeginListBox("CPU History", ImVec2(300, 400));
+    if (ImGui::BeginListBox("CPU History", ImVec2(300, 400))) {
+      if (debugger_state.mode == DEBUG && debugger_state.cpu_history_mutex.try_lock()) {
+        int i = 0;
+        CPUState selected_state;
+        auto begin = debugger_state.history_page > 0 
+          ? debugger_state.cpu_history_pages[debugger_state.history_page - 1] 
+          : debugger_state.cpu_history.begin();
+        auto end = debugger_state.cpu_history_pages.size() > 0 && debugger_state.history_page < debugger_state.cpu_history_pages.size() - 1 
+          ? debugger_state.cpu_history_pages[debugger_state.history_page + 1] 
+          : debugger_state.cpu_history.end();
+        for (auto it = begin; it != end; ++it) {
+          // Show PC for each state as a selectable button.
+          std::stringstream ss;
+          ss << "0x" << std::hex << it->pc << " ##" << i;
 
-    if (debugger_state.mode == DEBUG && debugger_state.cpu_history_mutex.try_lock()) {
-      int i = 0;
-      CPUState selected_state;
-      auto begin = debugger_state.history_page > 0 
-        ? debugger_state.cpu_history_pages[debugger_state.history_page - 1] 
-        : debugger_state.cpu_history.begin();
-      auto end = debugger_state.cpu_history_pages.size() > 0 && debugger_state.history_page < debugger_state.cpu_history_pages.size() - 1 
-        ? debugger_state.cpu_history_pages[debugger_state.history_page + 1] 
-        : debugger_state.cpu_history.end();
-      for (auto it = begin; it != end; ++it) {
-        // Show PC for each state as a selectable button.
-        std::stringstream ss;
-        ss << "0x" << std::hex << it->pc << " ##" << i;
-
-        if (ImGui::Selectable(ss.str().c_str(), selected_history_index == i)) {
-          selected_history_index = i;
-          selected_cpu_state = *it;
+          if (ImGui::Selectable(ss.str().c_str(), selected_history_index == i)) {
+            selected_history_index = i;
+            selected_cpu_state = *it;
+          }
+          i++;
         }
-        i++;
+        debugger_state.cpu_history_mutex.unlock();
       }
-      debugger_state.cpu_history_mutex.unlock();
+      ImGui::EndListBox();
     }
-
-    ImGui::EndListBox();
 
     if (ImGui::Button("Previous Page")) {
       if (debugger_state.history_page > 0) {

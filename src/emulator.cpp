@@ -186,13 +186,15 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
   auto gui = GUILibrary::GetInstance();
   gui->Init(&display);
 
+  // RGB5A1 causes the depth buffer to use swizzling, which causes crashes on resize (bgfx::reset).
+  // Using my fork of bgfx to fix it for now, issue is here:
+  // https://github.com/bkaradzic/bgfx/issues/3344
   auto frameTexture = new Texture2D(
     FRAME_WIDTH,
     FRAME_HEIGHT,
     false,
     1,
     bgfx::TextureFormat::RGB5A1,
-    BGFX_TEXTURE_NONE |
     BGFX_SAMPLER_MIN_POINT |
     BGFX_SAMPLER_MAG_POINT |
     BGFX_SAMPLER_MIP_POINT
@@ -201,6 +203,29 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
   std::function<void()> updateCallback = [&]() {};
   std::function<void()> renderCallback = [&]() {
     gui->NewFrame();
+
+    // Get the display size from ImGui
+    auto displaySize = ImGui::GetIO().DisplaySize;
+
+    // Create a dockspace window that is the size of the display always 
+    ImGui::SetNextWindowSize(ImVec2(displaySize.x, displaySize.y));
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
+    ImGui::Begin(
+      "MainWindow",
+      (bool*)0,
+      ImGuiWindowFlags_NoMove |
+      ImGuiWindowFlags_NoCollapse |
+      ImGuiWindowFlags_NoTitleBar |
+      ImGuiWindowFlags_NoNavFocus |
+      ImGuiWindowFlags_NoDecoration
+    );
+    ImGui::DockSpace(
+      ImGui::GetID("MyDockSpace"),
+      ImVec2(0, 0),
+      ImGuiDockNodeFlags_PassthruCentralNode
+    );
+    ImGui::PopStyleVar();
 
     // Update the frame texture.
     frameTexture->Update(
@@ -250,24 +275,28 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
       key_status |= 1 << 3;
     }
 
+    // Right button detection.
     if (inputManager->GetButtonDown(BUTTON_KEY_RIGHT)) {
       key_status &= ~(1 << 4);
     } else {
       key_status |= 1 << 4;
     }
 
+    // Left button detection.
     if (inputManager->GetButtonDown(BUTTON_KEY_LEFT)) {
       key_status &= ~(1 << 5);
     } else {
       key_status |= 1 << 5;
     }
 
+    // Up button detection.
     if (inputManager->GetButtonDown(BUTTON_KEY_UP)) {
       key_status &= ~(1 << 6);
     } else {
       key_status |= 1 << 6;
     }
 
+    // Down button detection.
     if (inputManager->GetButtonDown(BUTTON_KEY_DOWN)) {
       key_status &= ~(1 << 7);
     } else {
@@ -275,6 +304,8 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
     }
 
     ram_write_half_word_to_io_registers_fast<REG_KEY_STATUS>(cpu.ram, key_status & 0x3FF);
+
+    ImGui::End();
 
     gui->EndFrame();
 
