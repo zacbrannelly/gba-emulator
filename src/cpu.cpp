@@ -1908,11 +1908,24 @@ static constexpr uint32_t ARM_ADD_TO_PC_OPCODE = ARM_ADD_IMMEDIATE_NO_SET_COND_O
 static constexpr uint32_t ARM_ADD_TO_SP_OPCODE = ARM_ADD_IMMEDIATE_NO_SET_COND_OPCODE | (SP << 16);
 
 void decode_thumb_load_address(CPU& cpu, uint16_t instruction) {
-  uint8_t immediate_value = (instruction & 0xFF) << 2; // Last 8 bits, shifted by 2 to make it a 10-bit value
+  uint16_t immediate_value = (instruction & 0xFF) << 2; // Last 8 bits, shifted by 2 to make it a 10-bit value
   uint8_t destination_register = (instruction >> 8) & 0x7; // Next 3 bits
   bool is_sp = instruction & (1 << 11);
-  uint32_t input_component = (destination_register << 12) | immediate_value;
+  uint8_t half_rotate_amount = 0;
 
+  // If more than 8 bits are set, then we need to rotate the immediate value.
+  if ((immediate_value & (1 << 8)) || (immediate_value & (1 << 9))) {
+    // Immediate value represents a 10-bit value using 8 bits, so we add 2 bits to make it a 10-bit.
+    // Given 8-bit value: 0b11111111
+    // Actual 10-bit value: 0b1111111100
+
+    // The ARM `add` instruction only allows us to supply an 8-bit immediate value, so we need to rotate the value.
+    // So we give the original immediate value (unshifted by 2), and then rotate by 30 bits (to simulate a rotate left by 2 bits).
+    half_rotate_amount = 15;
+    immediate_value = immediate_value >> 2;
+  }
+
+  uint32_t input_component = (destination_register << 12) | (half_rotate_amount << 8) | (immediate_value & 0xFF);
   uint32_t arm_instruction = 0;
   if (is_sp) {
     // add rd, sp, #immediate_value
@@ -2138,6 +2151,7 @@ void execute_thumb_instruction(CPU& cpu, uint32_t instruction) {
     return;
   }
 
+  // 1010 1 111 1111 1111
   if (IS(instruction, THUMB_LOAD_ADDRESS_OPCODE)) {
     decode_thumb_load_address(cpu, instruction);
     return;
