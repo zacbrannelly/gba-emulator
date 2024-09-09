@@ -855,7 +855,6 @@ void gpu_cycle(CPU& cpu, GPU& gpu) {
 
     // Request HBlank interrupt (if it is enabled)
     if (lcd_status & REG_LCD_STATUS_HBLANK_INTERRUPT_ENABLE) {
-      std::cout << "HBlank interrupt" << std::endl;
       uint16_t interrupt_flags = ram_read_half_word_from_io_registers_fast<REG_INTERRUPT_REQUEST_FLAGS>(cpu.ram);
       interrupt_flags |= REG_LCD_STATUS_HBLANK_FLAG;
       // NOTE: The following write MUST skip the write hooks, since this register is clear-on-write.

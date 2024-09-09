@@ -1611,7 +1611,7 @@ void decode_thumb_alu_operations(CPU& cpu, uint32_t instruction) {
       break;
     case 7:
       // movs rd, rd, ror rs
-      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | ARM_ROR_COMPONENT | (source_register << 8);
+      arm_instruction = ARM_MOV_REGISTER_OPCODE | rd_rd_component | ARM_SHIFT_BY_REGISTER_FLAG | ARM_ROR_COMPONENT | (source_register << 8) | (destination_register & 0xFF);
       break;
     case 8:
       // tst rd, rs
