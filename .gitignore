@@ -7,3 +7,4 @@ build_debug
 *.sav
 gba_bios.bin
 debug/
+states/

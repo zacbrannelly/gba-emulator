@@ -17,6 +17,7 @@
 #include "debugger/window_debugger.h"
 #include "debugger/bg_debugger.h"
 #include "debugger/cpu_debugger.h"
+#include "debugger/state_debugger.h"
 
 #include "3rdparty/zengine/ZEngine-Core/Misc/Factory.h"
 #include "3rdparty/zengine/ZEngine-Core/Input/InputManager.h"
@@ -251,6 +252,7 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
     special_effects_debugger_window(cpu);
     window_debugger_window(cpu);
     bg_debugger_window(cpu);
+    state_debugger_window(cpu);
 
     uint16_t key_status = ram_read_half_word_from_io_registers_fast<REG_KEY_STATUS>(cpu.ram);
 
@@ -330,11 +332,13 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
 }
 
 void start_cpu_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_state) {
-  try {
-    emulator_loop(cpu, gpu, timer, debugger_state);
-  } catch (std::exception& e) {
-    debug_print_cpu_state(cpu);
-    std::cout << e.what() << std::endl;
+  while (!cpu.killSignal) {
+    try {
+      emulator_loop(cpu, gpu, timer, debugger_state);
+    } catch (std::exception& e) {
+      debug_print_cpu_state(cpu);
+      std::cout << e.what() << std::endl;
+    }
   }
 }
 
@@ -348,7 +352,13 @@ int main(int argc, char* argv[]) {
   debugger_state.mode = DEBUG;
 
   // Run CPU in a separate thread.
-  std::thread cpu_thread(start_cpu_loop, std::ref(cpu), std::ref(gpu), std::ref(timer), std::ref(debugger_state));
+  std::thread cpu_thread(
+    start_cpu_loop,
+    std::ref(cpu),
+    std::ref(gpu),
+    std::ref(timer),
+    std::ref(debugger_state)
+  );
 
   // Run graphics in the main thread.
   graphics_loop(cpu, gpu, debugger_state);

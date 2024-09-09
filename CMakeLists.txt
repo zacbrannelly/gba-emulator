@@ -25,6 +25,7 @@ set(COMMON_SOURCES
     src/dma.cpp
     src/timer.cpp
     src/gpu.cpp
+    src/state_io.cpp
 )
 
 # Only build emulator if not running in CI
@@ -52,6 +53,7 @@ if (NOT CI_RUNNER)
         src/debugger/window_debugger.cpp
         src/debugger/bg_debugger.cpp
         src/debugger/cpu_debugger.cpp
+        src/debugger/state_debugger.cpp
         src/emulator.cpp
     )
 
