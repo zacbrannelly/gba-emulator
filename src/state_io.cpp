@@ -1,6 +1,7 @@
 #include "state_io.h"
 #include "ram.h"
 
+#include <cstring>
 #include <fstream>
 
 struct SaveState {
