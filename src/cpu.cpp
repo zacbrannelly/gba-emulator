@@ -1945,16 +1945,29 @@ static constexpr uint32_t ARM_ADD_TO_SP_AND_STORE_IN_SP_OPCODE = ARM_ADD_TO_SP_O
 static constexpr uint32_t ARM_SUB_FROM_SP_AND_STORE_IN_SP_OPCODE = (SUB << 21) | IMMEDIATE | (SP << 16) | (SP << 12);
 
 void decode_thumb_add_offset_to_stack_pointer(CPU& cpu, uint16_t instruction) {
-  uint8_t magnitude_value = (instruction & 0x7F) << 2; // Last 7 bits, shifted by 2 to make it a 9-bit value
+  uint16_t magnitude_value = (instruction & 0x7F) << 2; // Last 7 bits, shifted by 2 to make it a 9-bit value
   bool is_subtract = instruction & (1 << 7);
+  uint8_t half_rotate_amount = 0;
+
+  // If more than 8 bits are set, then we need to rotate the immediate value.
+  if ((magnitude_value & (1 << 8)) || (magnitude_value & (1 << 9))) {
+    // Immediate value represents a 9-bit value using 7 bits, so we add 2 bits to make it a 9-bit.
+    // Given 7-bit value: 0b1111111
+    // Actual 9-bit value: 0b111111100
+
+    // The ARM add/sub instruction only allows us to supply an 8-bit immediate value, so we need to rotate the value.
+    // So we give the original immediate value (unshifted by 2), and then rotate by 30 bits (to simulate a rotate left by 2 bits).
+    half_rotate_amount = 15;
+    magnitude_value = magnitude_value >> 2;
+  }
 
   uint32_t arm_instruction = 0;
   if (is_subtract) {
     // sub sp, sp, #magnitude_value
-    arm_instruction = ARM_SUB_FROM_SP_AND_STORE_IN_SP_OPCODE | magnitude_value;
+    arm_instruction = ARM_SUB_FROM_SP_AND_STORE_IN_SP_OPCODE | (half_rotate_amount << 8) | magnitude_value;
   } else {
     // add sp, sp, #magnitude_value
-    arm_instruction = ARM_ADD_TO_SP_AND_STORE_IN_SP_OPCODE | magnitude_value;
+    arm_instruction = ARM_ADD_TO_SP_AND_STORE_IN_SP_OPCODE | (half_rotate_amount << 8) | magnitude_value;
   }
   decode_data_processing(cpu, arm_instruction);
 }
