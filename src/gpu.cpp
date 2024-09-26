@@ -462,9 +462,13 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
         texture_x = (bg_offset_x + transformed_x) >> 8;
         texture_y = (bg_offset_y + transformed_y) >> 8;
       } else {
-        texture_x = (screen_x + bg_offset_x) % width_in_pixels;
-        texture_y = (scanline + bg_offset_y) % height_in_pixels;
+        texture_x = screen_x + bg_offset_x;
+        texture_y = scanline + bg_offset_y;
       }
+
+      // Wrap around the texture coordinates.
+      texture_x = texture_x % width_in_pixels;
+      texture_y = texture_y % height_in_pixels;
 
       // TODO: Handle wrap around.
       if (texture_x < 0 || texture_x >= width_in_pixels || texture_y < 0 || texture_y >= height_in_pixels) {
@@ -850,7 +854,7 @@ void gpu_cycle(CPU& cpu, GPU& gpu) {
   if (cycles_into_scanline == 1232 - 272) {
     // Begin HBlank
     uint16_t lcd_status = ram_read_half_word_from_io_registers_fast<REG_LCD_STATUS>(cpu.ram);
-    lcd_status |= 1 << 1;
+    lcd_status |= REG_LCD_STATUS_HBLANK_FLAG;
     ram_write_half_word_to_io_registers_fast<REG_LCD_STATUS>(cpu.ram, lcd_status);
 
     // Request HBlank interrupt (if it is enabled)
