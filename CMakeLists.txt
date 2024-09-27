@@ -54,6 +54,7 @@ if (NOT CI_RUNNER)
         src/debugger/bg_debugger.cpp
         src/debugger/cpu_debugger.cpp
         src/debugger/state_debugger.cpp
+        src/input.cpp
         src/emulator.cpp
     )
 

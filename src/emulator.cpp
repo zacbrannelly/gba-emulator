@@ -10,6 +10,7 @@
 #include "dma.h"
 #include "gpu.h"
 #include "timer.h"
+#include "input.h"
 #include "debugger/palette_debugger.h"
 #include "debugger/sprite_debugger.h"
 #include "debugger/ram_debugger.h"
@@ -254,58 +255,8 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
     bg_debugger_window(cpu);
     state_debugger_window(cpu);
 
-    uint16_t key_status = ram_read_half_word_from_io_registers_fast<REG_KEY_STATUS>(cpu.ram);
-
-    // A button detection.
-    if (inputManager->GetButtonDown(BUTTON_KEY_A)) {
-      key_status &= ~1;
-    } else {
-      key_status |= 1;
-    }
-
-    // B button detection.
-    if (inputManager->GetButtonDown(BUTTON_KEY_B)) {
-      key_status &= ~(1 << 1);
-    } else {
-      key_status |= 1 << 1;
-    }
-
-    // Start button detection.
-    if (inputManager->GetButtonDown(BUTTON_KEY_SPACE)) {
-      key_status &= ~(1 << 3);
-    } else {
-      key_status |= 1 << 3;
-    }
-
-    // Right button detection.
-    if (inputManager->GetButtonDown(BUTTON_KEY_RIGHT)) {
-      key_status &= ~(1 << 4);
-    } else {
-      key_status |= 1 << 4;
-    }
-
-    // Left button detection.
-    if (inputManager->GetButtonDown(BUTTON_KEY_LEFT)) {
-      key_status &= ~(1 << 5);
-    } else {
-      key_status |= 1 << 5;
-    }
-
-    // Up button detection.
-    if (inputManager->GetButtonDown(BUTTON_KEY_UP)) {
-      key_status &= ~(1 << 6);
-    } else {
-      key_status |= 1 << 6;
-    }
-
-    // Down button detection.
-    if (inputManager->GetButtonDown(BUTTON_KEY_DOWN)) {
-      key_status &= ~(1 << 7);
-    } else {
-      key_status |= 1 << 7;
-    }
-
-    ram_write_half_word_to_io_registers_fast<REG_KEY_STATUS>(cpu.ram, key_status & 0x3FF);
+    // Input handling.
+    input_handle_key_detection(cpu, inputManager);
 
     ImGui::End();
 

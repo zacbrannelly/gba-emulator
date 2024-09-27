@@ -2164,7 +2164,6 @@ void execute_thumb_instruction(CPU& cpu, uint32_t instruction) {
     return;
   }
 
-  // 1010 1 111 1111 1111
   if (IS(instruction, THUMB_LOAD_ADDRESS_OPCODE)) {
     decode_thumb_load_address(cpu, instruction);
     return;
