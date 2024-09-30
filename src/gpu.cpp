@@ -249,8 +249,9 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
       }
       break;
     }
-    case 2: {
-      // Brightness Increase Effect
+    case 2:
+    case 3: {
+      // Brightness Increase Effect / Brightness Decrease Effect
       uint8_t effect_coefficients = ram_read_byte_from_io_registers_fast<REG_BLDY>(cpu.ram);
       if (effect_coefficients > 16) {
         effect_coefficients = 16;
@@ -290,9 +291,18 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
         uint8_t target_a_g = ((target_1_color >> 5) & 0x1F);
         uint8_t target_a_b = ((target_1_color >> 10) & 0x1F);
 
-        uint8_t r = target_a_r + (0x1F - target_a_r) * effect_coefficients_normalized;
-        uint8_t g = target_a_g + (0x1F - target_a_g) * effect_coefficients_normalized;
-        uint8_t b = target_a_b + (0x1F - target_a_b) * effect_coefficients_normalized;
+        bool is_increase_mode = special_effects_mode == 2;
+        uint8_t delta_r = is_increase_mode ? 0x1F - target_a_r : target_a_r;
+        uint8_t delta_g = is_increase_mode ? 0x1F - target_a_g : target_a_g;
+        uint8_t delta_b = is_increase_mode ? 0x1F - target_a_b : target_a_b;
+
+        delta_r = delta_r * effect_coefficients_normalized;
+        delta_g = delta_g * effect_coefficients_normalized;
+        delta_b = delta_b * effect_coefficients_normalized;
+
+        uint8_t r = is_increase_mode ? target_a_r + delta_r : target_a_r - delta_r;
+        uint8_t g = is_increase_mode ? target_a_g + delta_g : target_a_g - delta_g;
+        uint8_t b = is_increase_mode ? target_a_b + delta_b : target_a_b - delta_b;
 
         // Clip the intensity values.
         if (r > 0x1F) {
@@ -310,10 +320,6 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
           gpu.scanline_special_effects_buffer[i] = blended_color | ENABLE_PIXEL;
         }
       }
-      break;
-    }
-    case 3: {
-      // TODO: Brightness Decrease Effect
       break;
     }
   }
