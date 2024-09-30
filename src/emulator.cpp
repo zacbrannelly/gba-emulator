@@ -61,6 +61,7 @@ void cycle(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_state) {
 }
 
 void reset_cpu(CPU& cpu, GPU& gpu, Timer& timer) {
+  // TODO: Move this into the cpu module.
   for (int i = 0; i < 16; i++) {
     cpu.set_register_value(i, 0);
   }
@@ -88,24 +89,6 @@ void emulator_loop(
 
   // Start from the beginning of the ROM.
   cpu.set_register_value(PC, 0x0);
-
-  // Set the SP to the end of the working RAM on-chip (matching VirtualBoy Advance).
-  cpu.set_register_value(SP, WORKING_RAM_ON_CHIP_END - 0xFF);
-
-  // Set the SP for each mode.
-  // TODO: Clean this up and move it to a function (perhaps cpu_init?).
-  uint32_t cpsr_backup = cpu.cpsr;
-  cpu.cpsr = (uint32_t)Supervisor;
-  cpu.set_register_value(SP, 0x3007FE0);
-
-  cpu.cpsr = (uint32_t)IRQ;
-  cpu.set_register_value(SP, 0x3007FA0);
-
-  cpu.cpsr = (uint32_t)System;
-  cpu.set_register_value(SP, 0x3007F00);
-
-  // Reset the CPSR to the original value.
-  cpu.cpsr = cpsr_backup;
 
   // Set the key status to all keys being released (0 = pressed, 1 = released).
   ram_write_half_word_to_io_registers_fast<REG_KEY_STATUS>(cpu.ram, 0x3FF);
