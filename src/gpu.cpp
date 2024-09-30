@@ -367,7 +367,14 @@ inline void gpu_resolve_scanline_buffer(CPU& cpu, GPU& gpu) {
 
     auto pixel_priority_map = gpu.scanline_by_priority_and_pixel_source[x];
     for (int priority = 3; priority >= 0; priority--) {
-      for (int pixel_source = 4; pixel_source >= 0; pixel_source--) {
+      // Check the OBJ layer first.
+      if (pixel_priority_map[priority][PIXEL_SOURCE_OBJ] > 0) {
+        gpu.scanline_buffer[x] = pixel_priority_map[priority][PIXEL_SOURCE_OBJ];
+        continue;
+      }
+
+      // Then check the BG/Backdrop layers.
+      for (int pixel_source = 0; pixel_source < 4; pixel_source++) {
         if (pixel_priority_map[priority][pixel_source] > 0) {
           gpu.scanline_buffer[x] = pixel_priority_map[priority][pixel_source];
           break;
