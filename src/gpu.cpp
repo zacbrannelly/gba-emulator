@@ -38,9 +38,44 @@ inline void gpu_clear_scanline_buffers(GPU& gpu) {
   }
 }
 
-inline void gpu_apply_window_effects(CPU& cpu, GPU& gpu) {
+inline bool gpu_test_pixel_in_window(uint8_t const& x, uint8_t const& y, Window const& window) {
+  return x >= window.horizontal.left_most && x < window.horizontal.right_most &&
+         y >= window.vertical.top_most && y < window.vertical.bottom_most;
+}
+
+inline void gpu_apply_window_effects(CPU& cpu, GPU& gpu, uint8_t scanline) {
   uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
+  uint16_t inside_window = ram_read_half_word_from_io_registers_fast<REG_WINDOW_INSIDE>(cpu.ram);
   uint16_t outside_window = ram_read_half_word_from_io_registers_fast<REG_WINDOW_OUTSIDE>(cpu.ram);
+
+  bool layer_enabled_inside_window[2][6] = {
+    // Window 0
+    {
+      // BG0
+      (inside_window & 1) > 0,
+      // BG1
+      (inside_window & (1 << 1)) > 0,
+      // BG2
+      (inside_window & (1 << 2)) > 0,
+      // BG3
+      (inside_window & (1 << 3)) > 0,
+      // OBJ
+      (inside_window & (1 << 4)) > 0,
+    },
+    // Window 1
+    {
+      // BG0
+      (inside_window & (1 << 8)) > 0,
+      // BG1
+      (inside_window & (1 << 9)) > 0,
+      // BG2
+      (inside_window & (1 << 10)) > 0,
+      // BG3
+      (inside_window & (1 << 11)) > 0,
+      // OBJ
+      (inside_window & (1 << 12)) > 0,
+    }
+  };
 
   bool layer_enabled_outside_window[6] = {
     // BG0
@@ -68,34 +103,53 @@ inline void gpu_apply_window_effects(CPU& cpu, GPU& gpu) {
     (outside_window & (1 << 12)) > 0
   };
 
-  // TODO: Window 0
+  auto window_0_horizontal = *(WindowHorizontal*)ram_read_memory_from_io_registers_fast<REG_WINDOW0_HORIZONTAL>(cpu.ram);
+  auto window_0_vertical = *(WindowVertical*)ram_read_memory_from_io_registers_fast<REG_WINDOW0_VERTICAL>(cpu.ram);
+  auto window_0 = Window { window_0_horizontal, window_0_vertical };
 
-  // TODO: Window 1
+  auto window_1_horizontal = *(WindowHorizontal*)ram_read_memory_from_io_registers_fast<REG_WINDOW1_HORIZONTAL>(cpu.ram);
+  auto window_1_vertical = *(WindowVertical*)ram_read_memory_from_io_registers_fast<REG_WINDOW1_VERTICAL>(cpu.ram);
+  auto window_1 = Window { window_1_horizontal, window_1_vertical };
 
-  // OBJ Window
-  bool obj_window_enabled = disp_cnt & (1 << 15);
-  if (!obj_window_enabled) return;
+  bool window_0_enabled = disp_cnt & (1 << 13);
+  bool window_1_enabled = disp_cnt & (1 << 14);
+  bool obj_window_enabled = (
+    (disp_cnt & (1 << 12)) &&
+    (disp_cnt & (1 << 15)) &&
+    gpu.obj_window_exists
+  );
+  bool any_window_enabled = window_0_enabled || window_1_enabled || obj_window_enabled;
+  if (!any_window_enabled) return;
 
-  for (int i = 0; i < FRAME_WIDTH; i++) {
-    bool pixel_in_obj_window = gpu.scanline_obj_window_buffer[i];
-    uint16_t special_effect_color = gpu.scanline_special_effects_buffer[i];
+  for (int x = 0; x < FRAME_WIDTH; x++) {
+    for (int priority = 0; priority < 4; priority++) {
+      for (int pixel_source = 0; pixel_source < 5; pixel_source++) {
+        uint16_t color = gpu.scanline_by_priority_and_pixel_source[x][priority][pixel_source];
+        if (color == 0) continue;
 
-    if (!pixel_in_obj_window) {
-      // Conditionally disable pixels outside the OBJ window.
-      for (int priority = 0; priority < 4; priority++) {
-        for (int pixel_source = 0; pixel_source < 5; pixel_source++) {
-          if (gpu.scanline_by_priority_and_pixel_source[i][priority][pixel_source] > 0 && !layer_enabled_outside_window[pixel_source]) {
-            gpu.scanline_by_priority_and_pixel_source[i][priority][pixel_source] = 0;
-          }
+        // Test if pixel is inside a window.
+        bool pixel_in_window = false;
+        if (window_0_enabled && gpu_test_pixel_in_window(x, scanline, window_0)) {
+          // Window 0
+          gpu.scanline_by_priority_and_pixel_source[x][priority][pixel_source] = layer_enabled_inside_window[0][pixel_source] ? color : 0;
+          pixel_in_window = true;
         }
-      }
-    } else {
-      // Conditionally disable pixels inside the OBJ window.
-      for (int priority = 0; priority < 4; priority++) {
-        for (int pixel_source = 0; pixel_source < 5; pixel_source++) {
-          if (gpu.scanline_by_priority_and_pixel_source[i][priority][pixel_source] > 0 && !layer_enabled_in_obj_window[pixel_source]) {
-            gpu.scanline_by_priority_and_pixel_source[i][priority][pixel_source] = 0;
-          }
+        
+        if (window_1_enabled && gpu_test_pixel_in_window(x, scanline, window_1)) {
+          // Window 1
+          gpu.scanline_by_priority_and_pixel_source[x][priority][pixel_source] = layer_enabled_inside_window[1][pixel_source] ? color : 0;
+          pixel_in_window = true;
+        }
+        
+        if (obj_window_enabled && gpu.scanline_obj_window_buffer[x]) {
+          // OBJ Window
+          gpu.scanline_by_priority_and_pixel_source[x][priority][pixel_source] = layer_enabled_in_obj_window[pixel_source] ? color : 0;
+          pixel_in_window = true;
+        }
+        
+        // Hide pixel if its not in a window and the layer is not enabled outside the window.
+        if (!pixel_in_window && !layer_enabled_outside_window[pixel_source]) {
+          gpu.scanline_by_priority_and_pixel_source[x][priority][pixel_source] = 0;
         }
       }
     }
@@ -325,34 +379,63 @@ inline void gpu_apply_special_effects(CPU& cpu, GPU& gpu) {
   }
 }
 
-inline void gpu_apply_window_to_special_effects(CPU& cpu, GPU& gpu) {
+inline void gpu_apply_window_to_special_effects(CPU& cpu, GPU& gpu, uint8_t scanline) {
   uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
+  bool window_0_enabled = disp_cnt & (1 << 13);
+  bool window_1_enabled = disp_cnt & (1 << 14);
+  bool obj_window_enabled = (
+    (disp_cnt & (1 << 12)) &&
+    (disp_cnt & (1 << 15)) &&
+    gpu.obj_window_exists
+  );
+  bool any_window_enabled = window_0_enabled || window_1_enabled || obj_window_enabled;
+  if (!any_window_enabled) return;
+
+  uint16_t inside_window = ram_read_half_word_from_io_registers_fast<REG_WINDOW_INSIDE>(cpu.ram);
   uint16_t outside_window = ram_read_half_word_from_io_registers_fast<REG_WINDOW_OUTSIDE>(cpu.ram);
   bool sfx_enabled_outside_window = (outside_window & (1 << 5)) > 0;
   bool sfx_enabled_in_obj_window = (outside_window & (1 << 13)) > 0;
 
-  // TODO: Window 0
+  auto window_0_horizontal = *(WindowHorizontal*)ram_read_memory_from_io_registers_fast<REG_WINDOW0_HORIZONTAL>(cpu.ram);
+  auto window_0_vertical = *(WindowVertical*)ram_read_memory_from_io_registers_fast<REG_WINDOW0_VERTICAL>(cpu.ram);
+  auto window_0 = Window { window_0_horizontal, window_0_vertical };
 
-  // TODO: Window 1
+  auto window_1_horizontal = *(WindowHorizontal*)ram_read_memory_from_io_registers_fast<REG_WINDOW1_HORIZONTAL>(cpu.ram);
+  auto window_1_vertical = *(WindowVertical*)ram_read_memory_from_io_registers_fast<REG_WINDOW1_VERTICAL>(cpu.ram);
+  auto window_1 = Window { window_1_horizontal, window_1_vertical };
 
-  // OBJ Window
-  bool obj_window_enabled = disp_cnt & (1 << 15);
-  if (!obj_window_enabled) return;
+  bool sfx_enabled_in_window[2] = {
+    (inside_window & (1 << 5)) > 0,
+    (inside_window & (1 << 13)) > 0
+  };
 
-  for (int i = 0; i < FRAME_WIDTH; i++) {
-    bool pixel_in_obj_window = gpu.scanline_obj_window_buffer[i];
-    uint16_t special_effect_color = gpu.scanline_special_effects_buffer[i];
+  for (uint8_t x = 0; x < FRAME_WIDTH; x++) {
+    uint16_t special_effect_color = gpu.scanline_special_effects_buffer[x];
+    if (special_effect_color == 0) continue;
 
-    if (!pixel_in_obj_window) {
-      // Conditionally disable special effects outside the OBJ window.
-      if (special_effect_color > 0 && !sfx_enabled_outside_window) {
-        gpu.scanline_special_effects_buffer[i] = 0;
-      }
-    } else {
-      // Conditionally disable special effects inside the OBJ window.
-      if (special_effect_color > 0 && !sfx_enabled_in_obj_window) {
-        gpu.scanline_special_effects_buffer[i] = 0;
-      }
+    // Test if pixel is inside a window.
+    bool pixel_in_window = false;
+    if (window_0_enabled && gpu_test_pixel_in_window(x, scanline, window_0)) {
+      // Window 0
+      gpu.scanline_special_effects_buffer[x] = sfx_enabled_in_window[0] ? special_effect_color : 0;
+      pixel_in_window = true;
+    }
+
+    if (window_1_enabled && gpu_test_pixel_in_window(x, scanline, window_1)) {
+      // Window 1
+      gpu.scanline_special_effects_buffer[x] = sfx_enabled_in_window[1] ? special_effect_color : 0;
+      pixel_in_window = true;
+    }
+
+    if (obj_window_enabled && gpu.scanline_obj_window_buffer[x]) {
+      // OBJ Window
+      gpu.scanline_special_effects_buffer[x] = sfx_enabled_in_obj_window ? special_effect_color : 0;
+      pixel_in_window = true;
+    }
+
+    // Hide pixel if its not in a window and the special effect is not enabled outside the window.
+    if (!pixel_in_window && !sfx_enabled_outside_window) {
+      gpu.scanline_special_effects_buffer[x] = 0;
     }
   }
 }
@@ -668,6 +751,10 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
     OBJMode obj_mode = (OBJMode)((attr0 >> 10) & 0x3);
     uint8_t priority = (attr2 >> 10) & 0x3;
 
+    if (obj_mode == OBJ_MODE_WINDOW) {
+      gpu.obj_window_exists = true;
+    }
+
     int iy = y_in_draw_area - half_height;
     for (int ix = -half_width; ix < half_width; ix++) {
       int texture_x = 0;
@@ -781,13 +868,13 @@ void gpu_render_scanline(CPU& cpu, GPU& gpu, uint8_t scanline) {
   gpu_render_obj_layer(cpu, gpu, scanline);
 
   // Apply Window Effects
-  gpu_apply_window_effects(cpu, gpu);
+  gpu_apply_window_effects(cpu, gpu, scanline);
 
   // Apply Special Effects
   gpu_apply_special_effects(cpu, gpu);
 
   // Apply Window to Special Effects
-  gpu_apply_window_to_special_effects(cpu, gpu);
+  gpu_apply_window_to_special_effects(cpu, gpu, scanline);
 
   // Composite the various priority buffers to a final scanline.
   gpu_resolve_scanline_buffer(cpu, gpu);

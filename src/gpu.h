@@ -59,6 +59,21 @@ struct BackgroundControl {
   uint8_t screen_size : 2;
 };
 
+struct WindowHorizontal {
+  uint8_t right_most : 8;
+  uint8_t left_most : 8;
+};
+
+struct WindowVertical {
+  uint8_t bottom_most : 8;
+  uint8_t top_most : 8;
+};
+
+struct Window {
+  WindowHorizontal horizontal;
+  WindowVertical vertical;
+};
+
 struct GPU {
   // 4 priority levels, 4 possible pixel sources (BACKDROP is not used here).
   uint16_t scanline_by_priority_and_pixel_source[FRAME_WIDTH][4][5];
@@ -69,6 +84,7 @@ struct GPU {
 
   // Mask sourced from OBJ Windows.
   bool scanline_obj_window_buffer[FRAME_WIDTH];
+  bool obj_window_exists = false;
 
   // Final scanline color buffer.
   uint16_t scanline_buffer[FRAME_WIDTH];

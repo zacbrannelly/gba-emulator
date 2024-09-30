@@ -1,8 +1,23 @@
 #include "window_debugger.h"
+#include "../gpu.h"
 #include "3rdparty/zengine/ZEngine-Core/ImmediateUI/imgui-includes.h"
 
 void window_debugger_window(CPU& cpu) {
   if (ImGui::Begin("Window Debugger")) {
+    WindowHorizontal window_0_horizontal = *(WindowHorizontal*)ram_read_memory_from_io_registers_fast<REG_WINDOW0_HORIZONTAL>(cpu.ram);
+    WindowVertical window_0_vertical = *(WindowVertical*)ram_read_memory_from_io_registers_fast<REG_WINDOW0_VERTICAL>(cpu.ram);
+
+    ImGui::Text("Window 0:");
+    ImGui::Text("Horizontal: %d - %d", window_0_horizontal.left_most, window_0_horizontal.right_most);
+    ImGui::Text("Vertical: %d - %d", window_0_vertical.top_most, window_0_vertical.bottom_most);
+
+    WindowHorizontal window_1_horizontal = *(WindowHorizontal*)ram_read_memory_from_io_registers_fast<REG_WINDOW1_HORIZONTAL>(cpu.ram);
+    WindowVertical window_1_vertical = *(WindowVertical*)ram_read_memory_from_io_registers_fast<REG_WINDOW1_VERTICAL>(cpu.ram);
+
+    ImGui::Text("Window 1:");
+    ImGui::Text("Horizontal: %d - %d", window_1_horizontal.left_most, window_1_horizontal.right_most);
+    ImGui::Text("Vertical: %d - %d", window_1_vertical.top_most, window_1_vertical.bottom_most);
+
     uint16_t disp_cnt = ram_read_half_word_from_io_registers_fast<REG_LCD_CONTROL>(cpu.ram);
     bool window_0_enabled = disp_cnt & (1 << 13);
     bool window_1_enabled = disp_cnt & (1 << 14);
