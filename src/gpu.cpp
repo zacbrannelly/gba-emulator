@@ -593,6 +593,8 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
         if (disp_cnt.background_mode == 4) {
           // 256 color mode. 1 byte per pixel.
           uint8_t palette_idx = vram[scanline * width_in_pixels + screen_x + frame_offset];
+          if (palette_idx == 0) continue;
+          
           uint16_t color = palette_ram[palette_idx] | ENABLE_PIXEL;
           gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
         } else {
