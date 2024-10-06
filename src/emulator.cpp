@@ -19,6 +19,7 @@
 #include "debugger/bg_debugger.h"
 #include "debugger/cpu_debugger.h"
 #include "debugger/state_debugger.h"
+#include "debugger/rom_loader.h"
 
 #include "3rdparty/zengine/ZEngine-Core/Misc/Factory.h"
 #include "3rdparty/zengine/ZEngine-Core/Input/InputManager.h"
@@ -237,6 +238,7 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
     window_debugger_window(cpu);
     bg_debugger_window(cpu);
     state_debugger_window(cpu);
+    rom_loader_window(cpu);
 
     // Input handling.
     input_handle_key_detection(cpu, inputManager);
