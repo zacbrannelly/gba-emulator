@@ -488,22 +488,37 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
       continue;
     }
 
+    // Prevent rendering other bg layers if in mode 3-5 and bg is not 2.
+    if (bg != 2 && disp_cnt.background_mode > 2) {
+      continue;
+    }
+
     BackgroundControl const& bg_control = *(BackgroundControl*)(bg_control_mem + bg * 2);
     uint8_t* base_bg_tile_ram = vram + bg_control.char_base_block * 0x4000;
     uint16_t* base_screen_block_ram = (uint16_t*)(vram + bg_control.screen_base_block * 0x800);
     bool is_rotation_scaling = disp_cnt.background_mode >= 2 || (disp_cnt.background_mode == 1 && bg == 2);
 
+    uint32_t width_in_pixels = 0;
+    uint32_t height_in_pixels = 0;
+
     uint32_t width_in_tiles = 0;
     uint32_t height_in_tiles = 0;
-    gpu_get_bg_size_in_tiles(
-      is_rotation_scaling,
-      bg_control.screen_size,
-      width_in_tiles,
-      height_in_tiles
-    );
 
-    uint32_t width_in_pixels = width_in_tiles * TILE_SIZE;
-    uint32_t height_in_pixels = height_in_tiles * TILE_SIZE;
+    bool bitmap_mode = disp_cnt.background_mode > 2;
+    if (bitmap_mode) {
+      width_in_pixels = disp_cnt.background_mode == 5 ? 160 : 240;
+      height_in_pixels = disp_cnt.background_mode == 5 ? 128 : 160;
+    } else {
+      gpu_get_bg_size_in_tiles(
+        is_rotation_scaling,
+        bg_control.screen_size,
+        width_in_tiles,
+        height_in_tiles
+      );
+
+      width_in_pixels = width_in_tiles * TILE_SIZE;
+      height_in_pixels = height_in_tiles * TILE_SIZE;
+    }
 
     int32_t bg_offset_x = 0;
     int32_t bg_offset_y = 0;
@@ -571,76 +586,92 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
         continue;
       }
 
-      // Get the tile coordinates.
-      int tile_x = texture_x / TILE_SIZE;
-      int tile_y = texture_y / TILE_SIZE;
-
-      int pos_x_in_tile = texture_x % TILE_SIZE;
-      int pos_y_in_tile = texture_y % TILE_SIZE;
-
-      uint8_t tile_size_bytes = bg_control.is_256_color_mode ? TILE_8BPP_BYTES : TILE_4BPP_BYTES;
-
-      if (is_rotation_scaling) {
-        // 1 byte per entry. Always 256 color mode (8bpp).
-        int screen_entry_idx = tile_y * width_in_tiles + tile_x;
-        uint8_t tile_index = ((uint8_t*)base_screen_block_ram)[screen_entry_idx];
-        uint8_t palette_number = *(base_bg_tile_ram + tile_index * tile_size_bytes + pos_y_in_tile * TILE_SIZE + pos_x_in_tile);
-        
-        // Zero palette number means transparent pixel for backgrounds.
-        if (palette_number == 0) continue;
-
-        uint16_t color = palette_ram[palette_number];
-        color |= ENABLE_PIXEL;
-        gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
+      if (bitmap_mode) {
+        uint32_t frame_offset = disp_cnt.display_frame_select 
+          ? width_in_pixels * height_in_pixels 
+          : 0;
+        if (disp_cnt.background_mode == 4) {
+          // 256 color mode. 1 byte per pixel.
+          uint8_t palette_idx = vram[scanline * width_in_pixels + screen_x + frame_offset];
+          uint16_t color = palette_ram[palette_idx] | ENABLE_PIXEL;
+          gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
+        } else {
+          // 32k color mode. 2 bytes per pixel.
+          uint16_t color = ((uint16_t*)vram)[scanline * width_in_pixels + screen_x + frame_offset] | ENABLE_PIXEL;
+          gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
+        }
       } else {
-        // 2 bytes per screen entry, can be 16 (4bpp) or 256 colors (8bpp).
-        int screen_block_idx = 0;
-        if (width_in_tiles == height_in_tiles) {
-          screen_block_idx = (tile_y / 32) * (width_in_tiles / 32) + (tile_x / 32);
-        } else if (width_in_tiles > height_in_tiles) {
-          screen_block_idx = tile_x / 32;
-        } else {
-          screen_block_idx = tile_y / 32;
-        }
+        // Get the tile coordinates.
+        int tile_x = texture_x / TILE_SIZE;
+        int tile_y = texture_y / TILE_SIZE;
 
-        uint16_t screen_block_entry = ((uint16_t*)base_screen_block_ram)[screen_block_idx * 1024 + (tile_y % 32) * 32 + (tile_x % 32)];
-        uint16_t tile_index = screen_block_entry & 0x3FF;
-        uint8_t flip_mode = (screen_block_entry >> 10) & 0x3;
-        bool horizontal_flip = flip_mode & 0x1;
-        bool vertical_flip = flip_mode & 0x2;
-        uint8_t palette_bank = (screen_block_entry >> 12) & 0xF;
+        int pos_x_in_tile = texture_x % TILE_SIZE;
+        int pos_y_in_tile = texture_y % TILE_SIZE;
 
-        if (horizontal_flip) {
-          pos_x_in_tile = TILE_SIZE - 1 - pos_x_in_tile;
-        }
-        if (vertical_flip) {
-          pos_y_in_tile = TILE_SIZE - 1 - pos_y_in_tile;
-        }
+        uint8_t tile_size_bytes = bg_control.is_256_color_mode ? TILE_8BPP_BYTES : TILE_4BPP_BYTES;
 
-        uint8_t* tile_data = &base_bg_tile_ram[tile_index * tile_size_bytes];
-
-        if (bg_control.is_256_color_mode) {
-          // TODO: This code path is untested.
-          uint8_t palette_index = tile_data[pos_y_in_tile * TILE_SIZE + pos_x_in_tile];
-          uint16_t color = palette_ram[palette_index];
-
-          // Skip transparent pixels.
-          if (palette_index == 0) continue;
-
-          color |= ENABLE_PIXEL;
-          gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
-        } else {
-          uint8_t palette_indices = tile_data[pos_y_in_tile * HALF_TILE_SIZE + pos_x_in_tile / 2];
-          uint8_t palette_index = pos_x_in_tile % 2 == 0
-            ? palette_indices & 0xF 
-            : (palette_indices >> 4) & 0xF;
-
-          // Skip transparent pixels.
-          if (palette_index == 0) continue;
+        if (is_rotation_scaling) {
+          // 1 byte per entry. Always 256 color mode (8bpp).
+          int screen_entry_idx = tile_y * width_in_tiles + tile_x;
+          uint8_t tile_index = ((uint8_t*)base_screen_block_ram)[screen_entry_idx];
+          uint8_t palette_number = *(base_bg_tile_ram + tile_index * tile_size_bytes + pos_y_in_tile * TILE_SIZE + pos_x_in_tile);
           
-          uint16_t color = palette_ram[palette_bank * 16 + palette_index];
+          // Zero palette number means transparent pixel for backgrounds.
+          if (palette_number == 0) continue;
+
+          uint16_t color = palette_ram[palette_number];
           color |= ENABLE_PIXEL;
           gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
+        } else {
+          // 2 bytes per screen entry, can be 16 (4bpp) or 256 colors (8bpp).
+          int screen_block_idx = 0;
+          if (width_in_tiles == height_in_tiles) {
+            screen_block_idx = (tile_y / 32) * (width_in_tiles / 32) + (tile_x / 32);
+          } else if (width_in_tiles > height_in_tiles) {
+            screen_block_idx = tile_x / 32;
+          } else {
+            screen_block_idx = tile_y / 32;
+          }
+
+          uint16_t screen_block_entry = ((uint16_t*)base_screen_block_ram)[screen_block_idx * 1024 + (tile_y % 32) * 32 + (tile_x % 32)];
+          uint16_t tile_index = screen_block_entry & 0x3FF;
+          uint8_t flip_mode = (screen_block_entry >> 10) & 0x3;
+          bool horizontal_flip = flip_mode & 0x1;
+          bool vertical_flip = flip_mode & 0x2;
+          uint8_t palette_bank = (screen_block_entry >> 12) & 0xF;
+
+          if (horizontal_flip) {
+            pos_x_in_tile = TILE_SIZE - 1 - pos_x_in_tile;
+          }
+          if (vertical_flip) {
+            pos_y_in_tile = TILE_SIZE - 1 - pos_y_in_tile;
+          }
+
+          uint8_t* tile_data = &base_bg_tile_ram[tile_index * tile_size_bytes];
+
+          if (bg_control.is_256_color_mode) {
+            // TODO: This code path is untested.
+            uint8_t palette_index = tile_data[pos_y_in_tile * TILE_SIZE + pos_x_in_tile];
+            uint16_t color = palette_ram[palette_index];
+
+            // Skip transparent pixels.
+            if (palette_index == 0) continue;
+
+            color |= ENABLE_PIXEL;
+            gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
+          } else {
+            uint8_t palette_indices = tile_data[pos_y_in_tile * HALF_TILE_SIZE + pos_x_in_tile / 2];
+            uint8_t palette_index = pos_x_in_tile % 2 == 0
+              ? palette_indices & 0xF 
+              : (palette_indices >> 4) & 0xF;
+
+            // Skip transparent pixels.
+            if (palette_index == 0) continue;
+            
+            uint16_t color = palette_ram[palette_bank * 16 + palette_index];
+            color |= ENABLE_PIXEL;
+            gpu.scanline_by_priority_and_pixel_source[screen_x][bg_control.priority][bg] = color;
+          }
         }
       }
     }
