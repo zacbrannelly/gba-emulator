@@ -8,3 +8,4 @@ build_debug
 gba_bios.bin
 debug/
 states/
+recent_roms.txt
