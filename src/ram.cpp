@@ -46,6 +46,7 @@ void ram_soft_reset(RAM& ram) {
   memset(ram.palette_ram, 0, 0x400);
   memset(ram.video_ram, 0, 0x18000);
   memset(ram.object_attribute_memory, 0, 0x400);
+  memset(ram.eeprom, 0, 0x2000);
 
   // Make sure REG_KEY_STATUS is set to all keys being released.
   ram_write_half_word_to_io_registers_fast<REG_KEY_STATUS>(ram, 0x3FF);

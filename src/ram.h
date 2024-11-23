@@ -61,6 +61,10 @@ struct RAM {
   // 0x0E000000 - 0x0E00FFFF
   uint8_t* game_pak_sram = new uint8_t[0x10000];
 
+  // EEPROM (max 8kb)
+  // 0x0D000000 - 0x0D001FFF
+  uint8_t* eeprom = new uint8_t[0x2000];
+
   // TODO: Might not need this anymore.
   std::unordered_map<uint32_t, uint32_t> memory_size = {
     {BIOS_START,                 0x4000},

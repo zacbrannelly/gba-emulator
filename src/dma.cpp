@@ -1,4 +1,5 @@
 #include "dma.h"
+#include "eeprom.h"
 
 #define DMAxSAD(x) 0x40000B0 + (x * 12)
 #define DMAxDAD(x) 0x40000B4 + (x * 12)
@@ -108,7 +109,7 @@ enum DMASourceAddressControl {
 
 enum DMATransferType {
   TransferTypeHalfWord = 0,
-  TransferTypeWord = 1
+  TransferTypeWord = 1,
 };
 
 enum DMAStartMode {
@@ -150,10 +151,14 @@ bool dma_process_channel(CPU& cpu, uint8_t channel) {
   auto const dest_control = dma_control.destination_address_control;
   auto const source_control = dma_control.source_address_control;
   bool const is_repeat = dma_control.is_repeat;
-  auto const transfer_type = dma_control.is_word_transfer ? TransferTypeWord : TransferTypeHalfWord;
   auto const start_mode = dma_control.start_mode;
   bool const irq_enable = dma_control.irq_enable;
   bool const enable = dma_control.enable;
+  bool const is_eeprom_transfer = source_addr == 0xd000000 || dest_addr == 0xd000000;
+
+  auto transfer_type = dma_control.is_word_transfer 
+    ? TransferTypeWord 
+    : TransferTypeHalfWord;
 
   if (!enable) {
     return false;
@@ -192,7 +197,11 @@ bool dma_process_channel(CPU& cpu, uint8_t channel) {
   // std::cout << "  Control: 0x" << std::hex << control << std::endl;
 
   for (int i = 0; i < final_word_count; i++) {
-    dma_transfer(cpu, source_addr, dest_addr, transfer_type);
+    if (is_eeprom_transfer) {
+      eeprom_dma_transfer(cpu, source_addr, dest_addr, i);
+    } else {
+      dma_transfer(cpu, source_addr, dest_addr, transfer_type);
+    }
 
     switch (dest_control) {
       case DADIncrement:
@@ -223,6 +232,11 @@ bool dma_process_channel(CPU& cpu, uint8_t channel) {
 
     // Update the word count.
     ram_write_half_word(cpu.ram, DMA_CNT_L[channel], final_word_count - i - 1);
+  }
+
+  // Execute EEPROM command if the transfer type is EEPROM.
+  if (is_eeprom_transfer) {
+    eeprom_execute_command(cpu, final_word_count);
   }
 
   if (is_repeat) {
