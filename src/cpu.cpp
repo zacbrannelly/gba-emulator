@@ -560,6 +560,8 @@ template<void Op(CPU&, uint32_t, uint32_t, uint8_t), bool SetFlags = false>
 void register_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, uint16_t operand_2, uint8_t destination_register) {
   bool shift_is_register = shift_amount_is_in_register(operand_2);
   uint8_t const instruction_size = cpu.get_instruction_size();
+  uint32_t const pc_back_up = cpu.get_register_value(PC);
+
   if (shift_is_register) {
     // PC should be 12 bytes ahead if the shift amount is in a register
     // Why? Prefetching.
@@ -568,6 +570,13 @@ void register_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, ui
     // PC should be 8 bytes ahead if the shift amount is an immediate value
     // Why? Prefetching.
     cpu.set_register_value(PC, cpu.get_register_value(PC) + 2 * instruction_size);
+  }
+
+  // Thumb mode
+  // Spec 5.5.5
+  // "If R15 is used as an operand, the value will be the address of the instruction + 4 with bit 0 cleared."
+  if (instruction_size == 2 && (operand_1_register == PC || (operand_2 & 0xF) == PC)) {
+    cpu.set_register_value(PC, cpu.get_register_value(PC) & ~0x1);
   }
 
   uint32_t operand_1 = cpu.get_register_value(operand_1_register);
@@ -580,7 +589,7 @@ void register_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, ui
 
   if (destination_register != PC) {
     // Revert the prefetching offset and set the PC to the next instruction.
-    cpu.set_register_value(PC, cpu.get_register_value(PC) - (shift_is_register ? 2 * instruction_size : instruction_size));
+    cpu.set_register_value(PC, pc_back_up + instruction_size);
   } else {
     // Make sure the final value of the PC is 2-byte aligned at least.
     cpu.set_register_value(PC, cpu.get_register_value(PC) & ~0x1);
@@ -591,7 +600,15 @@ template<void Op(CPU&, uint32_t, uint32_t, uint8_t), bool SetFlags = false>
 void immediate_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, uint16_t operand_2, uint8_t destination_register) {
   // Account for prefetching.
   uint8_t const instruction_size = cpu.get_instruction_size();
+  uint32_t const pc_back_up = cpu.get_register_value(PC);
+
   cpu.set_register_value(PC, cpu.get_register_value(PC) + 2 * instruction_size);
+
+  // Thumb: ADD Rd, PC, #Imm
+  if (opcode == ADD && operand_1_register == PC && cpu.get_instruction_size() == 2) {
+    // Spec 5.12.1, where the PC is used as the source register, bit 1 (2nd bit) of the PC is always read as 0.
+    cpu.set_register_value(PC, cpu.get_register_value(PC) & ~0x2);
+  }
   
   uint32_t operand_1 = cpu.get_register_value(operand_1_register);
   uint32_t operand_2_immediate = apply_rotate_operation<SetFlags, true /* disable special cases (e.g. RRX on ROR #0) */>(cpu, operand_2);
@@ -603,7 +620,7 @@ void immediate_operation(CPU& cpu, uint8_t opcode, uint8_t operand_1_register, u
 
   if (destination_register != PC) {
     // Revert the prefetching offset and set the PC to the next instruction.
-    cpu.set_register_value(PC, cpu.get_register_value(PC) - instruction_size);
+    cpu.set_register_value(PC, pc_back_up + instruction_size);
   } else {
     // Make sure the final value of the PC is 2-byte aligned at least.
     cpu.set_register_value(PC, cpu.get_register_value(PC) & ~0x1);

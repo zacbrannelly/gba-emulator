@@ -41,7 +41,7 @@ static constexpr uint32_t GAME_PAK_ROM_END = 0x9FFFFFF;
 static constexpr uint32_t GAME_PAK_ROM_WS1_START = 0xA000000;
 static constexpr uint32_t GAME_PAK_ROM_WS1_END = 0xBFFFFFF;
 
-// Game Pak ROM/FalshROM (max 32MB) - Wait State 2
+// Game Pak ROM/FlashROM (max 32MB) - Wait State 2
 static constexpr uint32_t GAME_PAK_ROM_WS2_START = 0xC000000;
 static constexpr uint32_t GAME_PAK_ROM_WS2_END = 0xDFFFFFF;
 
