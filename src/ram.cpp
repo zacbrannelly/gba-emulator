@@ -41,7 +41,7 @@ void ram_init(RAM& ram) {
   // TODO: This needs to be more integrated with the EEPROM module.
   // TODO: Some games might not have an EEPROM, so this needs to be configurable.
   ram_register_read_hook(ram, 0xd000000, [](RAM& ram, uint32_t address) {
-    return 0x1;
+    return (uint32_t)0x1;
   });
 
   // Initialize the EEPROM with all bits set to 1 (to match MGBA behavior).

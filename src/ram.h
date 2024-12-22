@@ -8,6 +8,8 @@
 #include <iomanip>
 #include <vector>
 #include <algorithm>
+#include <functional>
+#include <unordered_map>
 #include "memory_map.h"
 
 #define MEMORY_MASK 0x0F000000
