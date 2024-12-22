@@ -36,6 +36,16 @@ void ram_init(RAM& ram) {
   ram_register_write_hook(ram, REG_KEY_STATUS, [](RAM&, uint32_t, uint32_t) {
     // Do nothing.
   });
+
+  // For EEPROM, if the user does a read from 0xd000000, return 0x1 to indicate that the write request is complete.
+  // TODO: This needs to be more integrated with the EEPROM module.
+  // TODO: Some games might not have an EEPROM, so this needs to be configurable.
+  ram_register_read_hook(ram, 0xd000000, [](RAM& ram, uint32_t address) {
+    return 0x1;
+  });
+
+  // Initialize the EEPROM with all bits set to 1 (to match MGBA behavior).
+  memset(ram.eeprom, 0xFF, 0x2000);
 }
 
 void ram_soft_reset(RAM& ram) {
@@ -46,7 +56,8 @@ void ram_soft_reset(RAM& ram) {
   memset(ram.palette_ram, 0, 0x400);
   memset(ram.video_ram, 0, 0x18000);
   memset(ram.object_attribute_memory, 0, 0x400);
-  memset(ram.eeprom, 0, 0x2000);
+
+  // TODO: Reset EEPROM memory here, but make it configurable so you can keep save data.
 
   // Make sure REG_KEY_STATUS is set to all keys being released.
   ram_write_half_word_to_io_registers_fast<REG_KEY_STATUS>(ram, 0x3FF);

@@ -26,7 +26,10 @@ void eeprom_dma_transfer(
     uint64_t data = ((uint64_t*)cpu.ram.eeprom)[eeprom_read_address];
 
     // Skip first 4 bits.
-    if (idx < 4) return;
+    if (idx < 4) {
+      ram_write_half_word(cpu.ram, dest_addr, 0);
+      return;
+    }
 
     // Write the data to the buffer.
     uint16_t chunk = (data >> (63 - (idx - 4))) & 0x1;
@@ -58,8 +61,8 @@ void eeprom_execute_command(CPU& cpu, uint16_t bit_count) {
 
     // TODO: This is also a crude way to determine the address size.
     int addr_size = bit_count == 73 ? 6 : 14;
-    for (int i = 0; i < 64; i++) {
-      write_address = (write_data << 1) | eeprom_half_word_buffer[i + 2];
+    for (int i = 0; i < addr_size; i++) {
+      write_address = (write_address << 1) | eeprom_half_word_buffer[i + 2];
     }
 
     for (int i = 0; i < 64; i++) {

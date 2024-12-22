@@ -1147,8 +1147,11 @@ void store_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t source_
   bool is_signed = control_flags & 2;
 
   if (is_halfword && !is_signed) {
-    // STRH - Store halfword
+    if ((base_address & 0x1) == 0) {
     ram_write_half_word(cpu.ram, base_address, value & 0xFFFF);
+      // STRH - Store halfword
+      ram_write_half_word(cpu.ram, base_address, value & 0xFFFF);
+    }
   } else {
     throw std::runtime_error("Cannot use store op on signed halfword or bytes");
   }
