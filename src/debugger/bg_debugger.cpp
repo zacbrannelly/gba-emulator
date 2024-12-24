@@ -225,7 +225,7 @@ void bg_debugger_window(CPU& cpu) {
     if (bitmap_mode) {
       uint32_t frame_offset = disp_control.display_frame_select 
         ? width_in_pixels * height_in_pixels 
-        : 0;
+      uint32_t frame_offset = debug_frame_select ? 256 * height_in_pixels : 0;
       for (int y = 0; y < height_in_pixels; y++) {
         for (int x = 0; x < width_in_pixels; x++) {
           if (disp_control.background_mode == 4) {

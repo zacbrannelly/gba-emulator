@@ -588,7 +588,7 @@ void gpu_render_bg_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
 
       if (bitmap_mode) {
         uint32_t frame_offset = disp_cnt.display_frame_select 
-          ? width_in_pixels * height_in_pixels 
+          ? 256 * height_in_pixels 
           : 0;
         if (disp_cnt.background_mode == 4) {
           // 256 color mode. 1 byte per pixel.
