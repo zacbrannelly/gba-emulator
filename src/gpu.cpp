@@ -689,11 +689,6 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
   uint16_t* sprite_palette_ram = (uint16_t*)(cpu.ram.palette_ram + 0x200);
   uint8_t* base_sprite_tile_ram = vram + 0x10000;
 
-  // Sprite RAM changes depending on the background mode.
-  if (disp_cnt.background_mode >= 3) {
-    base_sprite_tile_ram += 0x4000;
-  }
-
   for (int i = 127; i >= 0; i--) {
     uint16_t attr0 = oam[i * 4];
 
@@ -865,7 +860,7 @@ void gpu_render_obj_layer(CPU& cpu, GPU& gpu, uint8_t scanline) {
           ? palette_indices & 0xF
           : (palette_indices >> 4) & 0xF;
         uint16_t color = sprite_palette_ram[palette_number * 16 + palette_idx];
-       
+
         // Skip transparent pixels.
         if (palette_idx == 0) continue;
         
