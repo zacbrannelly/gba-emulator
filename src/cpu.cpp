@@ -948,7 +948,19 @@ void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t
   }
 
   if (control_flags & BYTE_QUANTITY) {
-    ram_write_byte(cpu.ram, base_address, value & 0xFF);
+    bool is_16_bit_aligned = (base_address & 0x1) == 0;
+    bool is_16_bit_addressable = (
+      base_address >= VRAM_START && base_address < VRAM_END ||
+      base_address >= PALETTE_RAM_START && base_address < PALETTE_RAM_END ||
+      base_address >= OAM_START && base_address < OAM_END
+    );
+    if (is_16_bit_aligned && is_16_bit_addressable) {
+      // Video related memory cannot write a single byte, therefore we need to write a half word.
+      // Games such as DOOM II and Duke Nukem 3D rely on this behavior.
+      ram_write_half_word(cpu.ram, base_address, (value & 0xFF) | ((value & 0xFF) << 8));
+    } else {
+      ram_write_byte(cpu.ram, base_address, value & 0xFF);
+    }
   } else {
     ram_write_word(cpu.ram, base_address, value);
   }
