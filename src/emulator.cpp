@@ -33,6 +33,7 @@
 
 void cycle(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_state) {
   // PC alignment check.
+  // TODO: Disable when we want performance.
   if (cpu.cpsr & CPSR_THUMB_STATE) {
     if (cpu.get_register_value(PC) % 2 != 0) {
       throw std::runtime_error("PC is not aligned to 2 bytes.");
@@ -82,6 +83,7 @@ void emulator_loop(
   gpu_init(cpu, gpu);
   timer_init(cpu, timer);
   
+  ram_soft_reset(cpu.ram);
   ram_load_bios(cpu.ram, "gba_bios.bin");
   
   // TODO: Make this configurable in the debugger UI.
@@ -98,7 +100,7 @@ void emulator_loop(
   ram_write_byte_direct(cpu.ram, GAME_PAK_SRAM_START, 0x62);
   ram_write_byte_direct(cpu.ram, GAME_PAK_SRAM_START + 1, 0x13);
 
-  while(!cpu.killSignal) {
+  while(!cpu.kill_signal) {
     if (debugger_state.command_queue.size() > 0) {
       // Get the first command from the queue.
       auto command = debugger_state.command_queue.front();
@@ -258,7 +260,7 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
   GameLoop loop(&display, 1.0 / 60.0, updateCallback, renderCallback);
   loop.StartLoop();
 
-  cpu.killSignal = true;
+  cpu.kill_signal = true;
 
   display.Shutdown();
   gui->Shutdown();
@@ -268,7 +270,7 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
 }
 
 void start_cpu_loop(CPU& cpu, GPU& gpu, Timer& timer, DebuggerState& debugger_state) {
-  while (!cpu.killSignal) {
+  while (!cpu.kill_signal) {
     try {
       emulator_loop(cpu, gpu, timer, debugger_state);
     } catch (std::exception& e) {

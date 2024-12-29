@@ -9,6 +9,7 @@ static Texture2D* bg_texture = nullptr;
 static uint16_t bg_texture_buffer[1024 * 1024];
 static int view_tile_x = 0;
 static int view_tile_y = 0;
+static bool debug_frame_select = false;
 
 static constexpr int BG_TEXTURE_BUFFER_SIZE = 1024 * 1024 * sizeof(uint16_t);
 
@@ -187,6 +188,9 @@ void bg_debugger_window(CPU& cpu) {
       height_in_pixels = height_in_tiles * TILE_SIZE;
     }
 
+    ImGui::Text("Width (px): %d", width_in_pixels);
+    ImGui::Text("Height (px): %d", height_in_pixels);
+
     if (bg_texture == nullptr) {
       // Create the texture.
       bg_texture = new Texture2D(
@@ -223,8 +227,8 @@ void bg_debugger_window(CPU& cpu) {
     }
 
     if (bitmap_mode) {
-      uint32_t frame_offset = disp_control.display_frame_select 
-        ? width_in_pixels * height_in_pixels 
+      ImGui::Checkbox("Display Frame Select", &debug_frame_select);
+
       uint32_t frame_offset = debug_frame_select ? 256 * height_in_pixels : 0;
       for (int y = 0; y < height_in_pixels; y++) {
         for (int x = 0; x < width_in_pixels; x++) {

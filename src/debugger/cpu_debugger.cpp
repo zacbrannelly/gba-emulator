@@ -7,7 +7,7 @@
 
 void cpu_record_state(CPU& cpu, DebuggerState& debugger_state) {
   if (!debugger_state.enable_record_state) return;
-  if (debugger_state.ignore_bios_calls && cpu.get_register_value(PC) < 0x8000000) return;
+  if (debugger_state.ignore_bios_calls && cpu.get_register_value(PC) < 0x2000000) return;
 
   CPUState state;
   state.pc = cpu.get_register_value(PC);

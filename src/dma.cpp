@@ -195,6 +195,7 @@ bool dma_process_channel(CPU& cpu, uint8_t channel) {
   // std::cout << "  Start Mode: " << (int)start_mode << std::endl;
   // std::cout << "  Repeat: " << is_repeat << std::endl;
   // std::cout << "  Control: 0x" << std::hex << control << std::endl;
+  // std::cout << "  Is EEPROM Transfer: " << is_eeprom_transfer << std::endl;
 
   for (int i = 0; i < final_word_count; i++) {
     if (is_eeprom_transfer) {
