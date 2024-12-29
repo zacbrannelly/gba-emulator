@@ -11,6 +11,7 @@
 #include "gpu.h"
 #include "timer.h"
 #include "input.h"
+#include "flash.h"
 #include "debugger/palette_debugger.h"
 #include "debugger/sprite_debugger.h"
 #include "debugger/ram_debugger.h"
@@ -83,11 +84,10 @@ void emulator_loop(
   gpu_init(cpu, gpu);
   timer_init(cpu, timer);
   
+  flash_init(cpu);
   ram_soft_reset(cpu.ram);
   ram_load_bios(cpu.ram, "gba_bios.bin");
   
-  // TODO: Make this configurable in the debugger UI.
-  // ram_load_rom(cpu.ram, "AGB_CHECKER_TCHK30.gba");
   ram_load_rom(cpu.ram, "pokemon_emerald.gba");
 
   // Start from the beginning of the ROM.
@@ -95,10 +95,6 @@ void emulator_loop(
 
   // Set the key status to all keys being released (0 = pressed, 1 = released).
   ram_write_half_word_to_io_registers_fast<REG_KEY_STATUS>(cpu.ram, 0x3FF);
-
-  // Supply a dummy value for the Flash ID, which is used by some games to detect the presence of a flash memory chip.
-  ram_write_byte_direct(cpu.ram, GAME_PAK_SRAM_START, 0x62);
-  ram_write_byte_direct(cpu.ram, GAME_PAK_SRAM_START + 1, 0x13);
 
   while(!cpu.kill_signal) {
     if (debugger_state.command_queue.size() > 0) {

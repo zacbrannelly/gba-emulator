@@ -959,7 +959,11 @@ void store_op(CPU& cpu, uint8_t base_register, uint8_t source_register, uint16_t
       // Games such as DOOM II and Duke Nukem 3D rely on this behavior.
       ram_write_half_word(cpu.ram, base_address, (value & 0xFF) | ((value & 0xFF) << 8));
     } else {
-      ram_write_byte(cpu.ram, base_address, value & 0xFF);
+      if (base_address >= GAME_PAK_SRAM_START && base_address < GAME_PAK_SRAM_END) {
+        flash_write_byte(cpu, base_address, value & 0xFF);
+      } else {
+        ram_write_byte(cpu.ram, base_address, value & 0xFF);
+      }
     }
   } else {
     ram_write_word(cpu.ram, base_address, value);
@@ -1008,7 +1012,11 @@ void load_op(CPU& cpu, uint8_t base_register, uint8_t destination_register, uint
   }
 
   if (control_flags & BYTE_QUANTITY) {
-    cpu.set_register_value(destination_register, ram_read_byte(cpu.ram, base_address) & 0xFF);
+    if (base_address >= GAME_PAK_SRAM_START && base_address < GAME_PAK_SRAM_END) {
+      cpu.set_register_value(destination_register, flash_read_byte(cpu, base_address) & 0xFF);
+    } else {
+      cpu.set_register_value(destination_register, ram_read_byte(cpu.ram, base_address) & 0xFF);
+    }
   } else {
     uint32_t word_aligned_address = base_address & ~3;
     uint32_t word_aligned_value = ram_read_word(cpu.ram, word_aligned_address);
@@ -1097,7 +1105,11 @@ void load_halfword_signed_byte(CPU& cpu, uint8_t base_register, uint8_t destinat
     value = ram_read_byte_signed(cpu.ram, base_address);
   } else {
     // LDRB - Load byte
-    value = ram_read_byte(cpu.ram, base_address);
+    if (base_address >= GAME_PAK_SRAM_START && base_address < GAME_PAK_SRAM_END) {
+      value = flash_read_byte(cpu, base_address);
+    } else {
+      value = ram_read_byte(cpu.ram, base_address);
+    }
   }
 
   cpu.set_register_value(destination_register, value);

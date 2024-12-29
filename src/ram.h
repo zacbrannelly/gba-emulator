@@ -59,9 +59,9 @@ struct RAM {
   // 0x08000000 - 0x09FFFFFF
   uint8_t* game_pak_rom = new uint8_t[0x2000000];
 
-  // Game Pak SRAM (max 64kb)
+  // Game Pak SRAM (max 128kb)
   // 0x0E000000 - 0x0E00FFFF
-  uint8_t* game_pak_sram = new uint8_t[0x10000];
+  uint8_t* game_pak_sram = new uint8_t[0x20000];
 
   // EEPROM (max 8kb)
   // 0x0D000000 - 0x0D001FFF

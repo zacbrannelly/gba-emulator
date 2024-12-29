@@ -27,6 +27,7 @@ set(COMMON_SOURCES
     src/gpu.cpp
     src/state_io.cpp
     src/eeprom.cpp
+    src/flash.cpp
 )
 
 # Only build emulator if not running in CI
