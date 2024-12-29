@@ -2,6 +2,7 @@
 #include "cpu.h"
 
 #include <iostream>
+#include <cstring>
 
 void flash_init(CPU& cpu) {
   memset(cpu.ram.game_pak_sram, 0xFF, 0x20000);
