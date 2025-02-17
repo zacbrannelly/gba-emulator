@@ -5,6 +5,8 @@
 #include "3rdparty/zengine/ZEngine-Core/Rendering/Texture2D.h"
 #include "3rdparty/zengine/ZEngine-Core/ImmediateUI/imgui-includes.h"
 
+using namespace ZEngine;
+
 static Texture2D* sprite_texture = nullptr;
 static uint16_t sprite_texture_buffer[64 * 64];
 static int selected_sprite = 0;

@@ -151,29 +151,29 @@ void emulator_loop(
 static constexpr int VIEW_ID = 0;
 
 void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
-  Factory::Init();
+  ZEngine::Factory::Init();
 
-  Display display("GBA Emulator", 1920, 1080);
+  ZEngine::Display display("GBA Emulator", 1920, 1080);
   if (!display.Init()) {
     throw std::runtime_error("Failed to initialize display.");
   }
 
-  auto inputManager = InputManager::GetInstance();
+  auto inputManager = ZEngine::InputManager::GetInstance();
   inputManager->Init(&display);
 
-  auto graphics = Graphics::GetInstance();
+  auto graphics = ZEngine::Graphics::GetInstance();
   graphics->Init(&display);
 
-  auto time = Time::GetInstance();
+  auto time = ZEngine::Time::GetInstance();
   time->Init();
 
-  auto gui = GUILibrary::GetInstance();
+  auto gui = ZEngine::GUILibrary::GetInstance();
   gui->Init(&display);
 
   // RGB5A1 causes the depth buffer to use swizzling, which causes crashes on resize (bgfx::reset).
   // Using my fork of bgfx to fix it for now, issue is here:
   // https://github.com/bkaradzic/bgfx/issues/3344
-  auto frameTexture = new Texture2D(
+  auto frameTexture = new ZEngine::Texture2D(
     FRAME_WIDTH,
     FRAME_HEIGHT,
     false,
@@ -253,7 +253,7 @@ void graphics_loop(CPU& cpu, GPU& gpu, DebuggerState& debugger_state) {
     inputManager->ClearMouseDelta();
   };
 
-  GameLoop loop(&display, 1.0 / 60.0, updateCallback, renderCallback);
+  ZEngine::GameLoop loop(&display, 1.0 / 60.0, updateCallback, renderCallback);
   loop.StartLoop();
 
   cpu.kill_signal = true;

@@ -2,6 +2,9 @@
 
 #include "cpu.h"
 
-class InputManager;
+namespace ZEngine
+{
+  class InputManager;
+}
 
-void input_handle_key_detection(CPU& cpu, InputManager* inputManager);
+void input_handle_key_detection(CPU& cpu, ZEngine::InputManager* inputManager);

@@ -3,6 +3,8 @@
 #include "3rdparty/zengine/ZEngine-Core/Rendering/Texture2D.h"
 #include "3rdparty/zengine/ZEngine-Core/ImmediateUI/imgui-includes.h"
 
+using namespace ZEngine;
+
 static Texture2D* bg_palette_texture = nullptr;
 static uint16_t bg_palette_texture_buffer[256];
 
