@@ -2442,7 +2442,7 @@ uint32_t cpu_read_next_arm_instruction(CPU& cpu) {
   uint32_t pc = cpu.get_register_value(PC) & ~0x3;
 
   // Fetch the instruction from the memory
-  return ram_read_word(cpu.ram, pc);
+  return ram_read_word_direct(cpu.ram, pc);
 }
 
 uint16_t cpu_read_next_thumb_instruction(CPU& cpu) {
@@ -2450,7 +2450,7 @@ uint16_t cpu_read_next_thumb_instruction(CPU& cpu) {
   uint32_t pc = cpu.get_register_value(PC) & ~0x1;
 
   // Fetch the instruction from the memory
-  return ram_read_half_word(cpu.ram, pc);
+  return ram_read_half_word_direct(cpu.ram, pc);
 }
 
 void cpu_cycle(CPU& cpu) {

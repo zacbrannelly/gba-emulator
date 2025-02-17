@@ -59,7 +59,7 @@ struct RAM {
   // 0x08000000 - 0x09FFFFFF
   uint8_t* game_pak_rom = new uint8_t[0x2000000];
 
-  // Game Pak SRAM (max 128kb)
+  // Game Pak SRAM (max 128kb with two 64kb banks)
   // 0x0E000000 - 0x0E00FFFF
   uint8_t* game_pak_sram = new uint8_t[0x20000];
 
@@ -67,22 +67,32 @@ struct RAM {
   // 0x0D000000 - 0x0D001FFF
   uint8_t* eeprom = new uint8_t[0x2000];
 
-  // TODO: Might not need this anymore.
-  std::unordered_map<uint32_t, uint32_t> memory_size = {
-    {BIOS_START,                 0x4000},
-    {WORKING_RAM_ON_BOARD_START, 0x40000},
-    {WORKING_RAM_ON_CHIP_START,  0x8000},
-    {IO_REGISTERS_START,         0x804},
-    {PALETTE_RAM_START,          0x400},
-    {VRAM_START,                 0x18000},
-    {OAM_START,                  0x400},
-    {GAME_PAK_ROM_START,         0x2000000}
-  };
-
   std::vector<uint32_t> memory_write_hook_addresses;
   std::vector<uint32_t> memory_read_hook_addresses;
   std::unordered_map<uint32_t, std::function<void(RAM&, uint32_t, uint32_t)>> memory_write_hooks;
   std::unordered_map<uint32_t, std::function<uint32_t(RAM&, uint32_t)>> memory_read_hooks;
+
+  // NOTE: Order is important here, as it is used to resolve memory locations.
+  uint8_t* memory_map[8] = {
+    system_rom,
+    external_working_ram,
+    internal_working_ram,
+    io_registers,
+    palette_ram,
+    video_ram,
+    object_attribute_memory,
+    game_pak_rom
+  };
+  uint32_t mirror_intervals[8] = {
+    0,
+    0x40000,
+    0x8000,
+    0,
+    0x400,
+    0,
+    0,
+    0
+  };
 
   bool load_rom_into_bios = false;
   bool enable_rom_write_protection = true;
@@ -157,53 +167,52 @@ inline bool ram_address_has_write_hook(RAM& ram, uint32_t address) {
 }
 
 inline uint8_t* ram_resolve_address(RAM& ram, uint32_t address) {
-  uint32_t memory_loc = address & MEMORY_MASK;
-  uint32_t offset = address & MEMORY_NOT_MASK;
-
   uint8_t* memory = nullptr;
   uint32_t mirror_interval = 0;
-  if (memory_loc == BIOS_START) {
-    memory = ram.system_rom;
-  } else if (memory_loc == WORKING_RAM_ON_BOARD_START) {
-    memory = ram.external_working_ram;
-    mirror_interval = 0x40000;
-  } else if (memory_loc == WORKING_RAM_ON_CHIP_START) {
-    memory = ram.internal_working_ram;
-    mirror_interval = 0x8000;
-  } else if (memory_loc == IO_REGISTERS_START) {
-    memory = ram.io_registers;
-  } else if (memory_loc == PALETTE_RAM_START) {
-    memory = ram.palette_ram;
-    mirror_interval = 0x400;
-  } else if (memory_loc == VRAM_START) {
-    memory = ram.video_ram;
-  } else if (memory_loc == OAM_START) {
-    memory = ram.object_attribute_memory;
-  } else if (
-    memory_loc == GAME_PAK_ROM_START ||
-    memory_loc == GAME_PAK_ROM_START + 0x1000000 ||
-    memory_loc == GAME_PAK_ROM_WS1_START ||
-    memory_loc == GAME_PAK_ROM_WS1_START + 0x1000000 ||
-    memory_loc == GAME_PAK_ROM_WS2_START ||
-    memory_loc == GAME_PAK_ROM_WS2_START + 0x1000000
-  ) {
-    memory = ram.game_pak_rom;
-    mirror_interval = 0x2000000;
-  } 
-  else if (
-    memory_loc == GAME_PAK_ROM_START + 0x1000000 ||
-    memory_loc == GAME_PAK_ROM_WS1_START + 0x1000000 ||
-    memory_loc == GAME_PAK_ROM_WS2_START + 0x1000000
-  ) {
-    memory = ram.game_pak_rom;
-    mirror_interval = 0x2000000;
-    offset += 0x1000000;
-  } else if (memory_loc == GAME_PAK_SRAM_START) {
-    memory = ram.game_pak_sram;
+
+  // Memory location mappings:
+  // 0 = BIOS
+  // 2 = EWRAM
+  // 3 = IWRAM
+  // 4 = I/O Registers
+  // 5 = Palette RAM
+  // 6 = VRAM
+  // 7 = OAM
+  // 8+ = Game Pak ROM
+  uint32_t memory_loc = address >> 24;
+  uint32_t offset = address & MEMORY_NOT_MASK;
+
+  // Adjust so we can index into the memory_map array
+  if (memory_loc > 0) {
+    memory_loc -= 1;
+  }
+
+  if (memory_loc <= 7) {
+    memory = ram.memory_map[memory_loc];
+    mirror_interval = ram.mirror_intervals[memory_loc];
   } else {
-    std::stringstream ss;
-    ss << "Error: Invalid memory location: 0x" << std::hex << std::setw(8) << std::setfill('0') << memory_loc << " at address 0x" << std::hex << std::setw(8) << std::setfill('0') << address;
-    throw std::runtime_error(ss.str());
+    memory_loc = address & MEMORY_MASK;
+    switch (memory_loc) {
+      case GAME_PAK_ROM_WS1_START:
+      case GAME_PAK_ROM_WS2_START:
+        memory = ram.game_pak_rom;
+        mirror_interval = 0x2000000;
+        break;
+      case GAME_PAK_ROM_START + 0x1000000:
+      case GAME_PAK_ROM_WS1_START + 0x1000000:
+      case GAME_PAK_ROM_WS2_START + 0x1000000:
+        memory = ram.game_pak_rom;
+        mirror_interval = 0x2000000;
+        offset += 0x1000000;
+        break;
+      case GAME_PAK_SRAM_START:
+        memory = ram.game_pak_sram;
+        break;
+      default:
+        std::stringstream ss;
+        ss << "Error: Invalid memory location: 0x" << std::hex << std::setw(8) << std::setfill('0') << memory_loc << " at address 0x" << std::hex << std::setw(8) << std::setfill('0') << address;
+        throw std::runtime_error(ss.str());
+    }
   }
 
   // Check if the memory location is mirrored.
