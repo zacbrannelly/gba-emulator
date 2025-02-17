@@ -70,10 +70,13 @@ void timer_init(CPU& cpu, Timer& timer) {
 }
 
 void timer_tick(CPU& cpu, Timer& timer) {
-  std::array<bool, 4> overflow_flags = {false, false, false, false};
+  // Reset the overflow flags.
+  for (int i = 0; i < 4; ++i) {
+    timer.overflow_flags[i] = false;
+  }
 
   for (int i = 0; i < 4; ++i) {
-    uint32_t control = ram_read_half_word(cpu.ram, TM_CNT_H[i]);
+    uint32_t control = ram_read_half_word_direct(cpu.ram, TM_CNT_H[i]);
     bool const enabled = control & TM_CNT_H_ENABLE_FLAG;
     if (!enabled) continue;
 
@@ -83,7 +86,7 @@ void timer_tick(CPU& cpu, Timer& timer) {
 
     if (count_up_on_prev_overflow && i > 0) {
       // If the previous timer overflowed, increment the current timer.
-      if (overflow_flags[i - 1]) {
+      if (timer.overflow_flags[i - 1]) {
         timer.counters[i]++;
       }
     } else if (cpu.cycle_count % interval == 0) {
@@ -92,7 +95,7 @@ void timer_tick(CPU& cpu, Timer& timer) {
 
     // Detect overflow (16-bit counter)
     if (timer.counters[i] > 0xFFFF) {
-      overflow_flags[i] = true;
+      timer.overflow_flags[i] = true;
 
       // Load the <reload> value into the counter.
       timer.counters[i] = ram_read_half_word_direct(cpu.ram, TM_CNT_L[i]);

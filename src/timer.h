@@ -3,8 +3,8 @@
 #include "cpu.h"
 
 struct Timer {
-  std::array<uint32_t, 4> counters;
-  std::array<uint32_t, 4> cycle_started;
+  uint32_t counters[4] = {0, 0, 0, 0};
+  bool overflow_flags[4] = {false, false, false, false};
 };
 
 void timer_init(CPU& cpu, Timer& timer);

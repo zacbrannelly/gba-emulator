@@ -194,9 +194,6 @@ struct CPU {
     {Undefined, 0},
   };
 
-  // ARM Data Processing Instruction Handlers
-  std::unordered_map<uint32_t, std::vector<std::function<void(CPU&, uint8_t, uint8_t, uint16_t, uint8_t)>>> arm_data_processing_instructions;
-
   // Possible Conditions
   std::vector<uint32_t> conditions = {
     EQ, NE, CS, CC, MI, PL, VS, VC,

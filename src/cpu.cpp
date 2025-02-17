@@ -631,17 +631,6 @@ static constexpr uint32_t SET_CONDITIONS = 1 << 20;
 static constexpr uint32_t IMMEDIATE = 1 << 25;
 static constexpr uint32_t SOURCE_SCPSR = 1 << 22;
 
-#define EXPAND_PERMUTATIONS(name) \
-  register_operation<name<false>>, \
-  immediate_operation<name<false>>, \
-  register_operation<name<true>, true>, \
-  immediate_operation<name<true>, true>
-#define EXPAND_PERMUTATIONS_IGNORE_CPSR(name) \
-  register_operation<name, true>, \
-  immediate_operation<name, true>, \
-  register_operation<name, true>, \
-  immediate_operation<name, true>
-
 void decode_move_psr_to_register(CPU& cpu, uint32_t opcode) {
   bool source_cpsr = opcode & SOURCE_SCPSR;
   uint8_t destination_register = (opcode >> 12) & 0xF;
@@ -709,6 +698,28 @@ static constexpr uint32_t IMMEDIATE_AND_NO_CPSR = 1;
 static constexpr uint32_t REGISTER_AND_CPSR = 2;
 static constexpr uint32_t IMMEDIATE_AND_CPSR = 3;
 
+#define RUN_DATA_OP(OP_FUNC_NO_SET_FLAGS, OP_FUNC_SET_FLAGS) \
+  if (!is_immediate && !set_conditions) { \
+    register_operation<OP_FUNC_NO_SET_FLAGS>(cpu, opcode, operand_1, operand_2, destination_register); \
+  } else if (is_immediate && !set_conditions) { \
+    immediate_operation<OP_FUNC_NO_SET_FLAGS>(cpu, opcode, operand_1, operand_2, destination_register); \
+  } else if (!is_immediate && set_conditions) { \
+    register_operation<OP_FUNC_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+  } else if (is_immediate && set_conditions) { \
+    immediate_operation<OP_FUNC_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+  }
+
+#define RUN_DATA_OP_IGNORE_CPSR(OP_FUNC_NO_SET_FLAGS) \
+  if (!is_immediate && !set_conditions) { \
+    register_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+  } else if (is_immediate && !set_conditions) { \
+    immediate_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+  } else if (!is_immediate && set_conditions) { \
+    register_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+  } else if (is_immediate && set_conditions) { \
+    immediate_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+  }
+
 void decode_data_processing(CPU& cpu, uint32_t opcode) {
   uint8_t data_opcode = (opcode >> 21) & 0xF;
   bool set_conditions = opcode & SET_CONDITIONS;
@@ -730,37 +741,75 @@ void decode_data_processing(CPU& cpu, uint32_t opcode) {
   uint16_t operand_2 = opcode & 0xFFF;
   bool is_immediate = opcode & IMMEDIATE;
 
-  auto const& operation_funcs = cpu.arm_data_processing_instructions[data_opcode];
-  if (!is_immediate && !set_conditions) {
-    operation_funcs[REGISTER_AND_NO_CPSR](cpu, data_opcode, operand_1, operand_2, destination_register);
-  } else if (is_immediate && !set_conditions) {
-    operation_funcs[IMMEDIATE_AND_NO_CPSR](cpu, data_opcode, operand_1, operand_2, destination_register);
-  } else if (!is_immediate && set_conditions) {
-    operation_funcs[REGISTER_AND_CPSR](cpu, data_opcode, operand_1, operand_2, destination_register);
-  } else if (is_immediate && set_conditions) {
-    operation_funcs[IMMEDIATE_AND_CPSR](cpu, data_opcode, operand_1, operand_2, destination_register);
+  switch (data_opcode) {
+    case AND: {
+      RUN_DATA_OP(and_op<false>, and_op<true>)
+      break;
+    }
+    case EOR: {
+      RUN_DATA_OP(exclusive_or_op<false>, exclusive_or_op<true>)
+      break;
+    }
+    case SUB: {
+      RUN_DATA_OP(subtract_op<false>, subtract_op<true>)
+      break;
+    }
+    case RSB: {
+      RUN_DATA_OP(reverse_subtract_op<false>, reverse_subtract_op<true>)
+      break;
+    }
+    case ADD: {
+      RUN_DATA_OP(add_op<false>, add_op<true>)
+      break;
+    }
+    case ADC: {
+      RUN_DATA_OP(add_with_carry_op<false>, add_with_carry_op<true>)
+      break;
+    }
+    case SBC: {
+      RUN_DATA_OP(subtract_with_carry_op<false>, subtract_with_carry_op<true>)
+      break;
+    }
+    case RSC: {
+      RUN_DATA_OP(reverse_subtract_with_carry_op<false>, reverse_subtract_with_carry_op<true>)
+      break;
+    }
+    case TST: {
+      RUN_DATA_OP_IGNORE_CPSR(test_op)
+      break;
+    }
+    case TEQ: {
+      RUN_DATA_OP_IGNORE_CPSR(test_exclusive_or_op)
+      break;
+    }
+    case CMP: {
+      RUN_DATA_OP_IGNORE_CPSR(compare_op)
+      break;
+    }
+    case CMN: {
+      RUN_DATA_OP_IGNORE_CPSR(test_add_op)
+      break;
+    }
+    case ORR: {
+      RUN_DATA_OP(or_operation<false>, or_operation<true>)
+      break;
+    }
+    case MOV: {
+      RUN_DATA_OP(move_op<false>, move_op<true>)
+      break;
+    }
+    case BIC: {
+      RUN_DATA_OP(bit_clear_op<false>, bit_clear_op<true>)
+      break;
+    }
+    case MVN: {
+      RUN_DATA_OP(move_not_op<false>, move_not_op<true>)
+      break;
+    }
+    default: {
+      throw std::runtime_error("Unknown data processing opcode");
+    }
   }
-}
-
-void prepare_data_processing(CPU& cpu) {
-  // Initialize the Data Processing instruction set
-  // TODO: Refactor this, just a remnant of the initial implementation.
-  cpu.arm_data_processing_instructions[AND] = { EXPAND_PERMUTATIONS(and_op) };
-  cpu.arm_data_processing_instructions[EOR] = { EXPAND_PERMUTATIONS(exclusive_or_op) };
-  cpu.arm_data_processing_instructions[SUB] = { EXPAND_PERMUTATIONS(subtract_op) };
-  cpu.arm_data_processing_instructions[RSB] = { EXPAND_PERMUTATIONS(reverse_subtract_op) };
-  cpu.arm_data_processing_instructions[ADD] = { EXPAND_PERMUTATIONS(add_op) };
-  cpu.arm_data_processing_instructions[ADC] = { EXPAND_PERMUTATIONS(add_with_carry_op) };
-  cpu.arm_data_processing_instructions[SBC] = { EXPAND_PERMUTATIONS(subtract_with_carry_op) };
-  cpu.arm_data_processing_instructions[RSC] = { EXPAND_PERMUTATIONS(reverse_subtract_with_carry_op) };
-  cpu.arm_data_processing_instructions[TST] = { EXPAND_PERMUTATIONS_IGNORE_CPSR(test_op) };
-  cpu.arm_data_processing_instructions[TEQ] = { EXPAND_PERMUTATIONS_IGNORE_CPSR(test_exclusive_or_op) };
-  cpu.arm_data_processing_instructions[CMP] = { EXPAND_PERMUTATIONS_IGNORE_CPSR(compare_op) };
-  cpu.arm_data_processing_instructions[CMN] = { EXPAND_PERMUTATIONS_IGNORE_CPSR(test_add_op) };
-  cpu.arm_data_processing_instructions[ORR] = { EXPAND_PERMUTATIONS(or_operation) };
-  cpu.arm_data_processing_instructions[MOV] = { EXPAND_PERMUTATIONS(move_op) };
-  cpu.arm_data_processing_instructions[BIC] = { EXPAND_PERMUTATIONS(bit_clear_op) };
-  cpu.arm_data_processing_instructions[MVN] = { EXPAND_PERMUTATIONS(move_not_op) };
 }
 
 // =================================================================================================
@@ -2159,9 +2208,6 @@ void cpu_init(CPU& cpu) {
 
   // Init the RAM
   ram_init(cpu.ram);
-
-  // TODO: Some refactoring and we might be able to remove this.
-  prepare_data_processing(cpu);
 
   // Reset the CPU
   cpu_reset(cpu);
