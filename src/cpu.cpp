@@ -700,24 +700,24 @@ static constexpr uint32_t IMMEDIATE_AND_CPSR = 3;
 
 #define RUN_DATA_OP(OP_FUNC_NO_SET_FLAGS, OP_FUNC_SET_FLAGS) \
   if (!is_immediate && !set_conditions) { \
-    register_operation<OP_FUNC_NO_SET_FLAGS>(cpu, opcode, operand_1, operand_2, destination_register); \
+    register_operation<OP_FUNC_NO_SET_FLAGS>(cpu, data_opcode, operand_1, operand_2, destination_register); \
   } else if (is_immediate && !set_conditions) { \
-    immediate_operation<OP_FUNC_NO_SET_FLAGS>(cpu, opcode, operand_1, operand_2, destination_register); \
+    immediate_operation<OP_FUNC_NO_SET_FLAGS>(cpu, data_opcode, operand_1, operand_2, destination_register); \
   } else if (!is_immediate && set_conditions) { \
-    register_operation<OP_FUNC_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+    register_operation<OP_FUNC_SET_FLAGS, true>(cpu, data_opcode, operand_1, operand_2, destination_register); \
   } else if (is_immediate && set_conditions) { \
-    immediate_operation<OP_FUNC_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+    immediate_operation<OP_FUNC_SET_FLAGS, true>(cpu, data_opcode, operand_1, operand_2, destination_register); \
   }
 
 #define RUN_DATA_OP_IGNORE_CPSR(OP_FUNC_NO_SET_FLAGS) \
   if (!is_immediate && !set_conditions) { \
-    register_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+    register_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, data_opcode, operand_1, operand_2, destination_register); \
   } else if (is_immediate && !set_conditions) { \
-    immediate_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+    immediate_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, data_opcode, operand_1, operand_2, destination_register); \
   } else if (!is_immediate && set_conditions) { \
-    register_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+    register_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, data_opcode, operand_1, operand_2, destination_register); \
   } else if (is_immediate && set_conditions) { \
-    immediate_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, opcode, operand_1, operand_2, destination_register); \
+    immediate_operation<OP_FUNC_NO_SET_FLAGS, true>(cpu, data_opcode, operand_1, operand_2, destination_register); \
   }
 
 void decode_data_processing(CPU& cpu, uint32_t opcode) {
