@@ -167,52 +167,47 @@ inline bool ram_address_has_write_hook(RAM& ram, uint32_t address) {
 }
 
 inline uint8_t* ram_resolve_address(RAM& ram, uint32_t address) {
+  uint32_t memory_loc = address & MEMORY_MASK;
+  uint32_t offset = address & MEMORY_NOT_MASK;
+
   uint8_t* memory = nullptr;
   uint32_t mirror_interval = 0;
 
-  // Memory location mappings:
-  // 0 = BIOS
-  // 2 = EWRAM
-  // 3 = IWRAM
-  // 4 = I/O Registers
-  // 5 = Palette RAM
-  // 6 = VRAM
-  // 7 = OAM
-  // 8+ = Game Pak ROM
-  uint32_t memory_loc = address >> 24;
-  uint32_t offset = address & MEMORY_NOT_MASK;
+  // TODO: Below is a hacky way to fix a bug in Emerald, where there is a bug
+  // in the ROM that tries to read from BIOS memory. This read returns a 0x10XXXXXX value.
+  // Then it tries to read from 0x10XXXXXX, which is not a valid memory location.
+  // This is a temporary fix, we need to find a better way to handle ROM reads by the loaded program.
+  uint32_t region = memory_loc >> 24;
 
-  // Adjust so we can index into the memory_map array
-  if (memory_loc > 0) {
-    memory_loc -= 1;
-  }
-
-  if (memory_loc <= 7) {
-    memory = ram.memory_map[memory_loc];
-    mirror_interval = ram.mirror_intervals[memory_loc];
+  if (region <= 7) {
+    if (region > 0) region--;
+    memory = ram.memory_map[region];
+    mirror_interval = ram.mirror_intervals[region];
+  } else if (
+    memory_loc == GAME_PAK_ROM_START ||
+    memory_loc == GAME_PAK_ROM_START + 0x1000000 ||
+    memory_loc == GAME_PAK_ROM_WS1_START ||
+    memory_loc == GAME_PAK_ROM_WS1_START + 0x1000000 ||
+    memory_loc == GAME_PAK_ROM_WS2_START ||
+    memory_loc == GAME_PAK_ROM_WS2_START + 0x1000000
+  ) {
+    memory = ram.game_pak_rom;
+    mirror_interval = 0x2000000;
+  } 
+  else if (
+    memory_loc == GAME_PAK_ROM_START + 0x1000000 ||
+    memory_loc == GAME_PAK_ROM_WS1_START + 0x1000000 ||
+    memory_loc == GAME_PAK_ROM_WS2_START + 0x1000000
+  ) {
+    memory = ram.game_pak_rom;
+    mirror_interval = 0x2000000;
+    offset += 0x1000000;
+  } else if (memory_loc == GAME_PAK_SRAM_START) {
+    memory = ram.game_pak_sram;
   } else {
-    memory_loc = address & MEMORY_MASK;
-    switch (memory_loc) {
-      case GAME_PAK_ROM_WS1_START:
-      case GAME_PAK_ROM_WS2_START:
-        memory = ram.game_pak_rom;
-        mirror_interval = 0x2000000;
-        break;
-      case GAME_PAK_ROM_START + 0x1000000:
-      case GAME_PAK_ROM_WS1_START + 0x1000000:
-      case GAME_PAK_ROM_WS2_START + 0x1000000:
-        memory = ram.game_pak_rom;
-        mirror_interval = 0x2000000;
-        offset += 0x1000000;
-        break;
-      case GAME_PAK_SRAM_START:
-        memory = ram.game_pak_sram;
-        break;
-      default:
-        std::stringstream ss;
-        ss << "Error: Invalid memory location: 0x" << std::hex << std::setw(8) << std::setfill('0') << memory_loc << " at address 0x" << std::hex << std::setw(8) << std::setfill('0') << address;
-        throw std::runtime_error(ss.str());
-    }
+    std::stringstream ss;
+    ss << "Error: Invalid memory location: 0x" << std::hex << std::setw(8) << std::setfill('0') << memory_loc << " at address 0x" << std::hex << std::setw(8) << std::setfill('0') << address;
+    throw std::runtime_error(ss.str());
   }
 
   // Check if the memory location is mirrored.
